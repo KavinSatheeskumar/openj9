@@ -9269,15 +9269,17 @@ else
    if (regex)
       {
       J9Method *method = details.getMethod();
-      J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
+      J9Class *clazz = J9_CLASS_FROM_METHOD(method);
+      J9UTF8 *className = J9ROMCLASS_CLASSNAME(clazz->romClass);
       // TR::SimpleRegex::match needs a NULL-terminated string
       size_t classNameLength = J9UTF8_LENGTH(className);
       char *name = (char*)compiler->trMemory()->allocateMemory(classNameLength+1, stackAlloc);
       strncpy(name, (char*)J9UTF8_DATA(className), classNameLength);
       name[classNameLength] = '\0';
-      if (TR::SimpleRegex::match(regex, name))
+      if (TR::SimpleRegex::match(regex, name) || compiler->_transientClassLoaders.find((void*)clazz->classLoader) != compiler->_transientClassLoaders.end())
          {
          compiler->getOptions()->setCodeCacheKind(TR::CodeCacheKind::TRANSIENT_CODE_CC);
+         compiler->_transientClassLoaders.insert((void*)clazz->classLoader);
          }
       }
    }

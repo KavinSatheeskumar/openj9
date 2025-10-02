@@ -644,6 +644,8 @@ private:
    bool _osrProhibitedOverRangeOfTrees;
    bool _wasFearPointAnalysisDone;
    bool _permanentLoadersInitialized;
+
+   static PersistentUnorderedSet<void*> _transientClassLoaders;
    };
 
 }
