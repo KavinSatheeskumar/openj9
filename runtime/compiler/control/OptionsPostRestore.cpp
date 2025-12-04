@@ -488,7 +488,7 @@ J9::OptionsPostRestore::shouldInvalidateCompiledMethod(J9Method *method, TR_J9VM
                J9UTF8_LENGTH(signature), utf8Data(signature));
 
          TR_FilterBST *filter = NULL;
-         shouldFilterMethod = !TR::Options::getDebug()->methodSigCanBeCompiled(methodSignature, filter, TR::Method::J9);
+         shouldFilterMethod = !TR::Options::getCompilationFilters()->methodSigCanBeFound(methodSignature, TR::Method::J9, filter);
          }
       }
 
@@ -499,7 +499,7 @@ void
 J9::OptionsPostRestore::invalidateCompiledMethodsIfNeeded(bool invalidateAll)
    {
    TR_J9VMBase *fej9 = TR_J9VMBase::get(_jitConfig, _vmThread);
-   bool compilationFiltersExist = (TR::Options::getDebug() && TR::Options::getDebug()->getCompilationFilters());
+   bool compilationFiltersExist = TR::Options::getCompilationFilters();
 
    if (invalidateAll || compilationFiltersExist)
       {

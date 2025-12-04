@@ -203,8 +203,8 @@ TR::OptionSet *findOptionSet(J9Method *method, bool isAOT)
       snprintf(methodSignature, len, "%.*s.%.*s%.*s", J9UTF8_LENGTH(className), utf8Data(className), J9UTF8_LENGTH(name), utf8Data(name), J9UTF8_LENGTH(signature), utf8Data(signature));
 
       TR_FilterBST * filter = 0;
-      if (TR::Options::getDebug() && TR::Options::getDebug()->getCompilationFilters())
-         TR::Options::getDebug()->methodSigCanBeCompiled(methodSignature, filter, TR::Method::J9);
+      if (TR::Options::getCompilationFilters())
+         TR::Options::getCompilationFilters()->methodSigCanBeFound(methodSignature, TR::Method::J9, filter);
 
       int32_t index = filter ? filter->getOptionSet() : 0;
       int32_t lineNum = filter ? filter->getLineNumber() : 0;

@@ -520,18 +520,15 @@ J9::Options::versionOption(const char *option, void *base, TR::OptionTable *entr
 const char *
 J9::Options::limitOption(const char *option, void *base, TR::OptionTable *entry)
    {
-   if (!J9::Options::getDebug() && !J9::Options::createDebug())
-      return 0;
-
    if (J9::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return J9::Options::getDebug()->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), false);
+      return TR::Options::getCompilationFilters()->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions());
       }
    else
       {
       // otherwise, we're processing JIT options
-      return J9::Options::getDebug()->limitOption(option, base, entry, TR::Options::getJITCmdLineOptions(), false);
+      return TR::Options::getCompilationFilters()->limitOption(option, base, entry, TR::Options::getJITCmdLineOptions());
       }
    }
 
@@ -553,12 +550,12 @@ J9::Options::limitfileOption(const char *option, void *base, TR::OptionTable *en
    if (J9::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return J9::Options::getDebug()->limitfileOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), false, pseudoRandomNumbersListPtr);
+      return J9::Options::getCompilationFilters()->limitfileOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), pseudoRandomNumbersListPtr);
       }
    else
       {
       // otherwise, we're processing JIT options
-      return J9::Options::getDebug()->limitfileOption(option, base, entry, TR::Options::getJITCmdLineOptions(), false, pseudoRandomNumbersListPtr);
+      return J9::Options::getCompilationFilters()->limitfileOption(option, base, entry, TR::Options::getJITCmdLineOptions(), pseudoRandomNumbersListPtr);
       }
    }
 
@@ -571,12 +568,12 @@ J9::Options::inlinefileOption(const char *option, void *base, TR::OptionTable *e
    if (J9::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return J9::Options::getDebug()->inlinefileOption(option, base, entry, TR::Options::getAOTCmdLineOptions());
+      return J9::Options::getInlineFilters()->inlinefileOption(option, base, entry, TR::Options::getAOTCmdLineOptions());
       }
    else
       {
       // otherwise, we're processing JIT options
-      return J9::Options::getDebug()->inlinefileOption(option, base, entry, TR::Options::getJITCmdLineOptions());
+      return J9::Options::getInlineFilters()->inlinefileOption(option, base, entry, TR::Options::getJITCmdLineOptions());
       }
    }
 
@@ -752,7 +749,7 @@ Options::loadLimitOption(const char *option, void *base, TR::OptionTable *entry)
    if (TR::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return TR::Options::getDebug()->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), true);
+      return TR::Options::getRelocationFilters()->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions());
       }
    else
       {
@@ -784,7 +781,7 @@ Options::loadLimitfileOption(const char *option, void *base, TR::OptionTable *en
    if (TR::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return TR::Options::getDebug()->limitfileOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), true /* new param */, pseudoRandomNumbersListPtr);
+      return TR::Options::getRelocationFilters()->limitfileOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), pseudoRandomNumbersListPtr);
       }
    else
       {
@@ -800,12 +797,10 @@ Options::loadLimitfileOption(const char *option, void *base, TR::OptionTable *en
 const char *
 Options::JITServerAOTCacheLimitOption(const char *option, void *base, TR::OptionTable *entry, TR::CompilationFilters *&filters, const char *optName)
    {
-   if (!TR::Options::getDebug() && !TR::Options::createDebug())
-      return NULL;
    if (TR::Options::getJITCmdLineOptions() == NULL)
       {
       // if JIT options are NULL, means we're processing AOT options now
-      return TR::Options::getDebug()->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions(), filters);
+      return filters->limitOption(option, base, entry, TR::Options::getAOTCmdLineOptions());
       }
    else
       {
@@ -837,7 +832,7 @@ Options::JITServerRemoteExclude(const char *option, void *base, TR::OptionTable 
    if (TR::Options::getJITCmdLineOptions() != NULL)
       {
       // this should be specified as a JIT option
-      return TR::Options::getDebug()->limitOption(option, base, entry, TR::Options::getJITCmdLineOptions(), _JITServerRemoteExcludeFilters);
+      return _JITServerRemoteExcludeFilters->limitOption(option, base, entry, TR::Options::getJITCmdLineOptions());
       }
    else
       {
@@ -2958,7 +2953,7 @@ J9::Options::fePostProcessJIT(void * base)
 
    if (TR::Options::getVerboseOption(TR_VerboseFilters))
       {
-      if (TR::Options::getDebug() && TR::Options::getDebug()->getCompilationFilters())
+      if (TR::Options::getCompilationFilters())
          {
          TR_VerboseLog::writeLine(TR_Vlog_INFO,"JIT limit filters:");
          TR::Options::getDebug()->printFilters();
@@ -3112,7 +3107,7 @@ J9::Options::fePostProcessAOT(void * base)
 
    if (TR::Options::getVerboseOption(TR_VerboseFilters))
       {
-      if (TR::Options::getDebug() && TR::Options::getDebug()->getCompilationFilters())
+      if (TR::Options::getCompilationFilters())
          {
          TR_VerboseLog::writeLine(TR_Vlog_INFO,"AOT limit filters:");
          TR::Options::getDebug()->printFilters();

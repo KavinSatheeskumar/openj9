@@ -7505,8 +7505,8 @@ TR::CompilationInfoPerThreadBase::preCompilationTasks(J9VMThread * vmThread,
          TR_FilterBST *filter = NULL;
 
          TR_ResolvedMethod *resolvedMethod = fe->createResolvedMethod(&trMemory, (TR_OpaqueMethodBlock *)method);
-         if (!debug->methodCanBeRelocated(&trMemory, resolvedMethod, filter) ||
-             !debug->methodCanBeCompiled(&trMemory, resolvedMethod, filter))
+         if (!TR::Options::getRelocationFilters()->methodCanBeFound(&trMemory, resolvedMethod, filter) ||
+             !TR::Options::getCompilationFilters()->methodCanBeFound(&trMemory, resolvedMethod, filter))
             canRelocateMethod = false;
          }
 
@@ -10957,10 +10957,7 @@ TR::CompilationInfoPerThreadBase::methodCanBeCompiled(TR_Memory *trMemory, TR_Fr
       return !fej9->isClassArray(method->classOfMethod());
       }
 
-   if (!TR::Options::getDebug())
-      return true;
-
-   return TR::Options::getDebug()->methodCanBeCompiled(trMemory, method, filter);
+   return TR::Options::getCompilationFilters()->methodCanBeFound(trMemory, method, filter);
    }
 
 void TR::CompilationInfoPerThreadBase::logCompilationSuccess(
@@ -13359,9 +13356,8 @@ TR::CompilationInfo::canRelocateMethod(TR::Compilation *comp)
    if (!comp->getOption(TR_DisableDelayRelocationForAOTCompilations))
       return false;
 
-   TR_Debug *debug = TR::Options::getDebug();
    TR_FilterBST *filter = NULL;
-   return debug ? debug->methodSigCanBeRelocated(comp->signature(), filter) : true;
+   return TR::Options::getRelocationFilters() ? TR::Options::getRelocationFilters()->methodSigCanBeFound(comp->signature(), TR::Method::J9, filter) : true;
    }
 
 #if defined(J9VM_OPT_JITSERVER)
@@ -13448,12 +13444,9 @@ queryJITServerFilter(const char *methodSig, TR::Method::Type ty, TR::Compilation
    if (!filters)
       return true;
 
-   TR_Debug *debug = TR::Options::getDebug();
-   if (!debug)
-      return true;
 
    TR_FilterBST *filter = NULL;
-   return debug->methodSigCanBeFound(methodSig, filters, filter, ty);
+   return filters->methodSigCanBeFound(methodSig, ty, filter);
    }
 
 bool
