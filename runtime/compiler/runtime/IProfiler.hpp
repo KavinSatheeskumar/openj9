@@ -155,7 +155,6 @@ public:
 
     uintptr_t getDominantClass(int32_t &sumW, int32_t &maxW);
     uint32_t getDominantSlot() const;
-
 private:
     uintptr_t _clazz[NUM_CS_SLOTS]; // store them in either 64 or 32 bits
 };
@@ -276,7 +275,7 @@ public:
 
     virtual void serialize(uintptr_t methodStartAddress, TR_IPBCDataStorageHeader *storage, TR::PersistentInfo *info)
         = 0;
-    virtual void deserialize(TR_IPBCDataStorageHeader *storage) = 0;
+    virtual void deserialize(TR_IPBCDataStorageHeader *storage, const char* msg) = 0;
 
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR::Region &region) const = 0;
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR_PersistentMemory *persistentMemory,
@@ -449,7 +448,7 @@ public:
     virtual uint32_t getBytesFootprint() { return sizeof(TR_IPBCDataFourBytesStorage); }
 #if defined(J9VM_OPT_JITSERVER)
     virtual void serialize(uintptr_t methodStartAddress, TR_IPBCDataStorageHeader *storage, TR::PersistentInfo *info);
-    virtual void deserialize(TR_IPBCDataStorageHeader *storage);
+    virtual void deserialize(TR_IPBCDataStorageHeader *storage, const char *msg);
 
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR::Region &region) const override
     {
@@ -564,7 +563,7 @@ public:
     virtual uint32_t getBytesFootprint() { return sizeof(TR_IPBCDataEightWordsStorage); }
 #if defined(J9VM_OPT_JITSERVER)
     virtual void serialize(uintptr_t methodStartAddress, TR_IPBCDataStorageHeader *storage, TR::PersistentInfo *info);
-    virtual void deserialize(TR_IPBCDataStorageHeader *storage);
+    virtual void deserialize(TR_IPBCDataStorageHeader *storage, const char *msg);
 
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR::Region &region) const override
     {
@@ -631,7 +630,7 @@ public:
 #if defined(J9VM_OPT_JITSERVER)
     virtual uint32_t canBeSerialized(TR::PersistentInfo *info);
     virtual void serialize(uintptr_t methodStartAddress, TR_IPBCDataStorageHeader *storage, TR::PersistentInfo *info);
-    virtual void deserialize(TR_IPBCDataStorageHeader *storage);
+    virtual void deserialize(TR_IPBCDataStorageHeader *storage, const char *msg);
 
     // TODO: add override to all functions that need it for consistency
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR::Region &region) const override
@@ -696,7 +695,7 @@ public:
 
 #if defined(J9VM_OPT_JITSERVER)
     virtual void serialize(uintptr_t methodStartAddress, TR_IPBCDataStorageHeader *storage, TR::PersistentInfo *info);
-    virtual void deserialize(TR_IPBCDataStorageHeader *storage);
+    virtual void deserialize(TR_IPBCDataStorageHeader *storage, const char *msg);
 
     virtual TR_IPBytecodeHashTableEntry *newEntry(TR::Region &region) const override
     {

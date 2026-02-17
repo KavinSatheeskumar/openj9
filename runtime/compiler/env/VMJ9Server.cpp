@@ -1899,7 +1899,10 @@ bool TR_J9ServerVM::instanceOfOrCheckCastHelper(J9Class *instanceClass, J9Class 
     if (cacheUpdate)
         stream->write(JITServer::MessageType::VM_instanceOfOrCheckCast, instanceClass, castClass);
     else
+        {
+        TR_ASSERT_FATAL((((uintptr_t)instanceClass) & 0xFF) == 0, "instance class %p\n", (void*)instanceClass);
         stream->write(JITServer::MessageType::VM_instanceOfOrCheckCastNoCacheUpdate, instanceClass, castClass);
+        }
     return std::get<0>(stream->read<bool>());
 }
 

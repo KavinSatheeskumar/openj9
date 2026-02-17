@@ -259,7 +259,7 @@ void JITServerIProfiler::deserializeIProfilerData(J9Method *method, const std::s
                 = ipBytecodeHashTableEntryFactory(storage, methodStart + storage->pc, trMemory, stackAlloc);
             if (entry) {
                 // Fill the new entry with data sent by client
-                entry->deserialize(storage);
+                entry->deserialize(storage, "deserializeIProfilerData");
                 ipEntries.push_back(entry);
             }
         }
@@ -302,7 +302,7 @@ bool JITServerIProfiler::cacheProfilingDataForMethod(TR_OpaqueMethodBlock *metho
             comp->trMemory(), usePersistentCache ? persistentAlloc : heapAlloc);
         if (entry) {
             // Fill the new entry with data sent by client
-            entry->deserialize(storage);
+            entry->deserialize(storage, "cacheProfilingDataForMethod");
 
             // Adjust the bci for interfaces. Interfaces are weird; we may have to add 2 to the bci that is going to be
             // the key
@@ -573,7 +573,7 @@ TR_IPBytecodeHashTableEntry *JITServerIProfiler::profilingSample(TR_OpaqueMethod
                 uint32_t bci = storage->pc;
                 entry = ipBytecodeHashTableEntryFactory(storage, methodStart + bci, comp->trMemory(), heapAlloc);
                 if (entry)
-                    entry->deserialize(storage);
+                    entry->deserialize(storage, "profilingSample - 1");
 
                 if (storage->ID == TR_IPBCD_CALL_GRAPH) {
                     U_8 *pc = (U_8 *)entry->getPC();
@@ -600,7 +600,7 @@ TR_IPBytecodeHashTableEntry *JITServerIProfiler::profilingSample(TR_OpaqueMethod
             TR_IPBCDataStorageHeader *storage = (TR_IPBCDataStorageHeader *)&ipdata[0];
             entry = ipBytecodeHashTableEntryFactory(storage, methodStart + storage->pc, comp->trMemory(), heapAlloc);
             if (entry)
-                entry->deserialize(storage);
+                entry->deserialize(storage, "profilingSample - 2");
         }
     }
 

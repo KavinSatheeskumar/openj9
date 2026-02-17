@@ -20,6 +20,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
+#include "infra/Assert.hpp"
 #if SOLARIS || AIXPPC || LINUX
 #include <strings.h>
 #define J9OS_STRNCMP strncasecmp
@@ -341,6 +342,7 @@ void TR_IProfiler::persistIprofileInfo(TR::ResolvedMethodSymbol *resolvedMethodS
     // From here, down, stack memory allocations will expire / die when the method returns
     TR::StackMemoryRegion stackMemoryRegion(*comp->trMemory());
 
+
     TR_OpaqueMethodBlock *method = resolvedMethod->getPersistentIdentifier();
 #ifdef PERSISTENCE_VERBOSE
     char methodSig[500];
@@ -405,6 +407,7 @@ void TR_IProfiler::persistIprofileInfo(TR::ResolvedMethodSymbol *resolvedMethodS
                 bytesFootprint
                     += walkILTreeForEntries(pcEntries, numEntries, &bci, method, comp, visitCount, -1, BCvisit, abort);
 
+
                 if (numEntries && !abort) {
                     uint32_t bytesToPersist = 0;
 
@@ -414,6 +417,7 @@ void TR_IProfiler::persistIprofileInfo(TR::ResolvedMethodSymbol *resolvedMethodS
                         for (int32_t i = 0; i < numEntries; i++)
                             fprintf(stderr, " %p(bytecode=0x%x)", pcEntries[i], *((char *)pcEntries[i]));
                         fprintf(stderr, "\n");
+
 #endif
                         void *memChunk = comp->trMemory()->allocateMemory(bytesFootprint, stackAlloc);
                         intptr_t bytes = createBalancedBST(pcEntries, 0, numEntries - 1, (uintptr_t)memChunk,
@@ -2324,7 +2328,7 @@ void TR_IPBCDataFourBytes::serialize(uintptr_t methodStartAddress, TR_IPBCDataSt
     store->data = data;
 }
 
-void TR_IPBCDataFourBytes::deserialize(TR_IPBCDataStorageHeader *storage) { loadFromPersistentCopy(storage, NULL); }
+void TR_IPBCDataFourBytes::deserialize(TR_IPBCDataStorageHeader *storage, const char *msg) { loadFromPersistentCopy(storage, NULL); }
 #endif
 
 void TR_IPBCDataFourBytes::createPersistentCopy(TR_J9SharedCache *sharedCache, TR_IPBCDataStorageHeader *storage,
@@ -2408,7 +2412,7 @@ void TR_IPBCDataEightWords::serialize(uintptr_t methodStartAddress, TR_IPBCDataS
         store->data[i] = data[i];
 }
 
-void TR_IPBCDataEightWords::deserialize(TR_IPBCDataStorageHeader *storage) { loadFromPersistentCopy(storage, NULL); }
+void TR_IPBCDataEightWords::deserialize(TR_IPBCDataStorageHeader *storage, const char* msg) { loadFromPersistentCopy(storage, NULL); }
 #endif
 
 int32_t TR_IPBCDataCallGraph::setData(uintptr_t v, uint32_t freq)
@@ -2663,6 +2667,7 @@ void TR_IPBCDataCallGraph::serialize(uintptr_t methodStartAddress, TR_IPBCDataSt
     storage->right = 0;
     for (int32_t i = 0; i < NUM_CS_SLOTS; i++) {
         J9Class *clazz = (J9Class *)_csInfo.getClazz(i);
+        TR_ASSERT_FATAL(((uintptr_t)clazz & 0xFF) == 0, "Sending invalid classptr to server %p\n", clazz);
         if (clazz) {
             TR_ASSERT(!info->isUnloadedClass(clazz, true), "cannot store unloaded class");
             store->_csInfo.setClazz(i, (uintptr_t)clazz);
@@ -2675,7 +2680,6 @@ void TR_IPBCDataCallGraph::serialize(uintptr_t methodStartAddress, TR_IPBCDataSt
     store->_csInfo._residueWeight = _csInfo._residueWeight;
     store->_csInfo._tooBigToBeInlined = _csInfo._tooBigToBeInlined;
 }
-
 /**
  * API used by JITServer to deserialize IP data of a method sent from JITClient
  *
@@ -2683,18 +2687,27 @@ void TR_IPBCDataCallGraph::serialize(uintptr_t methodStartAddress, TR_IPBCDataSt
  *
  * @return void
  */
-void TR_IPBCDataCallGraph::deserialize(TR_IPBCDataStorageHeader *storage)
+void TR_IPBCDataCallGraph::deserialize(TR_IPBCDataStorageHeader *storage, const char *msg)
 {
     TR_IPBCDataCallGraphStorage *store = (TR_IPBCDataCallGraphStorage *)storage;
-    TR_ASSERT(storage->ID == TR_IPBCD_CALL_GRAPH,
+    TR_ASSERT_FATAL(storage->ID == TR_IPBCD_CALL_GRAPH,
         "Incompatible types between storage and loading of iprofile persistent data");
     for (int32_t i = 0; i < NUM_CS_SLOTS; i++) {
+        uintptr_t clazz = store->_csInfo.getClazz(i);
+        TR_ASSERT_FATAL(
+            (clazz & 0xFF) == 0,
+            "MSG:%s, Recieved invalid class ptr from Client: %p, idx: %d. All classes %p, %p, %p\n",
+            msg,
+            clazz,
+            i,
+            store->_csInfo.getClazz(0), store->_csInfo.getClazz(1), store->_csInfo.getClazz(2));
         _csInfo.setClazz(i, store->_csInfo.getClazz(i));
         _csInfo._weight[i] = store->_csInfo._weight[i];
     }
     _csInfo._residueWeight = store->_csInfo._residueWeight;
     _csInfo._tooBigToBeInlined = store->_csInfo._tooBigToBeInlined;
 }
+
 #endif
 
 uint32_t TR_IPBCDataCallGraph::canBePersisted(TR_J9SharedCache *sharedCache, TR::PersistentInfo *info)
@@ -2976,7 +2989,7 @@ void TR_IPBCDataDirectCall::serialize(uintptr_t methodStartAddress, TR_IPBCDataS
     store->_tooBigToBeInlined = _tooBigToBeInlined;
 }
 
-void TR_IPBCDataDirectCall::deserialize(TR_IPBCDataStorageHeader *storage)
+void TR_IPBCDataDirectCall::deserialize(TR_IPBCDataStorageHeader *storage, const char* msg)
 {
     TR_IPBCDataDirectCallStorage *store = (TR_IPBCDataDirectCallStorage *)storage;
     TR_ASSERT(storage->ID == TR_IPBCD_DIRECT_CALL,
@@ -3747,6 +3760,7 @@ UDATA TR_IProfiler::parseBuffer(J9VMThread *vmThread, const U_8 *dataStart, UDAT
             case JBcheckcast:
             case JBinstanceof:
                 receiverClass = *(J9Class **)cursor;
+                TR_ASSERT_FATAL(((uintptr_t)receiverClass & 0xFF) == 0, "Not a J9class parse buffer %p\n", receiverClass);
                 cursor += sizeof(receiverClass);
 
                 data = (intptr_t)receiverClass;

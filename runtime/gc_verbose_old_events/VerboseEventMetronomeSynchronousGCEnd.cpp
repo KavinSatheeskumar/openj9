@@ -77,7 +77,7 @@ MM_VerboseEventMetronomeSynchronousGCEnd::consumeEvents(void)
 		/* Copy over all relevant attributes from SyncGC start event, to be used later in formattedOutput */
 		_heapFreeBefore = eventSyncGCStart->getHeapFree();
 		_startTime = eventSyncGCStart->getTimeStamp();
-		strncpy(_timestamp, eventSyncGCStart->getTimestamp(), 32);		
+		strncpy(_timestamp, eventSyncGCStart->getTimestamp(), 32);
 		_reason = eventSyncGCStart->getReason();
 		_reasonParameter = eventSyncGCStart->getReasonParameter();
 		_classLoadersUnloadedStart = eventSyncGCStart->getClassLoadersUnloaded();

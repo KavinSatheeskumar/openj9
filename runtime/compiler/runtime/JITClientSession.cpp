@@ -1137,7 +1137,7 @@ bool ClientSessionData::storeBytecodeProfileInSharedRepository(TR_OpaqueMethodBl
         auto storage = (TR_IPBCDataStorageHeader *)bufferPtr;
         auto entry = JITServerIProfiler::ipBytecodeHashTableEntryFactory(storage, methodStart + storage->pc,
             comp->trMemory(), stackAlloc);
-        entry->deserialize(storage);
+        entry->deserialize(storage, "storeBytecodeProfileInSharedRepository");
         if (storage->ID == TR_IPBCD_CALL_GRAPH)
             cgEntries.push_back((TR_IPBCDataCallGraph *)entry);
         else

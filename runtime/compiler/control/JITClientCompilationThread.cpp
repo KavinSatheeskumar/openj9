@@ -144,18 +144,35 @@ static void handler_IProfiler_profilingSample(JITServer::ClientStream *client, T
             return;
     }
 
-    // Send information just for this entry
-    std::vector<J9Class *> uncachedClasses;
-    std::vector<JITServerHelpers::ClassInfoTuple> classInfoTuples;
-    auto entry = iProfiler->profilingSample(method, bcIndex, comp, 0, /*addIt=*/false);
-    if (entry && !entry->isInvalid()) {
-        uint32_t canPersist = entry->canBeSerialized(comp->getPersistentInfo()); // This may lock the entry
-        if (canPersist == IPBC_ENTRY_CAN_PERSIST) {
-            uint32_t bytes = entry->getBytesFootprint();
-            std::string entryBytes(bytes, '\0');
-            auto storage = (TR_IPBCDataStorageHeader *)&entryBytes[0];
-            uintptr_t methodStartAddress = (uintptr_t)TR::Compiler->mtd.bytecodeStart(method);
-            entry->serialize(methodStartAddress, storage, comp->getPersistentInfo());
+
+   // Send information just for this entry
+   std::vector<J9Class *> uncachedClasses;
+   std::vector<JITServerHelpers::ClassInfoTuple> classInfoTuples;
+   auto entry = iProfiler->profilingSample(method, bcIndex, comp, 0, /*addIt=*/false);
+
+   if (entry && entry->asIPBCDataCallGraph())
+      {
+      TR_IPBCDataCallGraph *e = entry->asIPBCDataCallGraph();
+      if (e->getCGData())
+         {
+         for (int32_t i = 0; i < NUM_CS_SLOTS; i++)
+            {
+            uintptr_t clazz = e->getCGData()->getClazz(i);
+            TR_ASSERT_FATAL((clazz & 0xFF) == 0, "handler_IProfiler_profilingSample %p\n", clazz);
+            }
+         }
+      }
+
+   if (entry && !entry->isInvalid())
+      {
+      uint32_t canPersist = entry->canBeSerialized(comp->getPersistentInfo()); // This may lock the entry
+      if (canPersist == IPBC_ENTRY_CAN_PERSIST)
+         {
+         uint32_t bytes = entry->getBytesFootprint();
+         std::string entryBytes(bytes, '\0');
+         auto storage = (TR_IPBCDataStorageHeader*)&entryBytes[0];
+         uintptr_t methodStartAddress = (uintptr_t)TR::Compiler->mtd.bytecodeStart(method);
+         entry->serialize(methodStartAddress, storage, comp->getPersistentInfo());
 
             // Collect info about the classes the server needs but does not yet have
             auto cgEntry = entry->asIPBCDataCallGraph();
