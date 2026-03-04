@@ -1189,7 +1189,8 @@ void TR_J9ByteCodeIlGenerator::prependGuardedCountForRecompilation(TR::Block *or
     TR::Node *node = originalFirstTree->getNode();
 
     // construct guard
-    TR::Block *guardBlock = TR::Block::createEmptyBlock(comp());
+    TR::MyBlock *guardBlock = TR::Block::createEmptyMyBlock(comp());
+    guardBlock->setIndex(0);
     TR::Node *cmpFlagNode;
     if (comp()->getOption(TR_ImmediateCountingRecompilation)) {
         cmpFlagNode = TR::Node::createif(TR::ificmpeq, TR::Node::iconst(1234), TR::Node::iconst(5678),
@@ -1212,7 +1213,8 @@ void TR_J9ByteCodeIlGenerator::prependGuardedCountForRecompilation(TR::Block *or
         TR::DebugCounter::Moderate);
 
     // construct counter bump
-    TR::Block *bumpCounterBlock = TR::Block::createEmptyBlock(comp());
+    TR::MyBlock *bumpCounterBlock = TR::Block::createEmptyMyBlock(comp());
+    bumpCounterBlock->setIndex(1);
     TR::TreeTop *treeTop = TR::TreeTop::createIncTree(comp(), node, comp()->getRecompilationInfo()->getCounterSymRef(),
         -comp()->getOptions()->getGCRDecCount(), NULL, true);
     bumpCounterBlock->append(treeTop);
@@ -1225,8 +1227,8 @@ void TR_J9ByteCodeIlGenerator::prependGuardedCountForRecompilation(TR::Block *or
     TR::Node *cmpCountNode = TR::Node::createif(TR::ificmpgt, bumpNode, TR::Node::create(TR::iconst, 0, 0),
         originalFirstBlock->getEntry());
     bumpCounterBlock->append(TR::TreeTop::create(comp(), cmpCountNode));
-    bumpCounterBlock->setIsCold(true);
-    bumpCounterBlock->setFrequency(UNKNOWN_COLD_BLOCK_COUNT);
+    bumpCounterBlock->setIsCold(false);
+    bumpCounterBlock->setFrequency(MAX_WARM_BLOCK_COUNT);
 
     // construct call block
     TR::Block *callRecompileBlock = TR::Block::createEmptyBlock(comp());
@@ -1234,7 +1236,7 @@ void TR_J9ByteCodeIlGenerator::prependGuardedCountForRecompilation(TR::Block *or
         comp()->getRecompilationInfo()->getCounterSymRef(), comp()->getOptions()->getGCRResetCount(), NULL, true));
 
     // Create the instruction that will patch my cmp
-    if (comp()->getOption(TR_EnableGCRPatching)) {
+    if (false) {
         TR::Node *constNode = TR::Node::create(node, TR::bconst, 0);
         constNode->setByte(2);
         callRecompileBlock->append(TR::TreeTop::create(comp(),
@@ -1242,9 +1244,9 @@ void TR_J9ByteCodeIlGenerator::prependGuardedCountForRecompilation(TR::Block *or
                 comp()->getSymRefTab()->findOrCreateGCRPatchPointSymbolRef())));
     }
 
-    TR::TreeTop *callTree = TR::TransformUtil::generateRetranslateCallerWithPrepTrees(node,
-        TR_PersistentMethodInfo::RecompDueToGCR, comp());
-    callRecompileBlock->append(callTree);
+    //TR::TreeTop *callTree = TR::TransformUtil::generateRetranslateCallerWithPrepTrees(node,
+    //    TR_PersistentMethodInfo::RecompDueToGCR, comp());
+    //callRecompileBlock->append(callTree);
     callRecompileBlock->setIsCold(true);
     callRecompileBlock->setFrequency(UNKNOWN_COLD_BLOCK_COUNT);
 

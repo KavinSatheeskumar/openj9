@@ -30,6 +30,7 @@
 #include <malloc.h>
 #endif // LINUX
 #include <stdarg.h>
+#include <chrono>
 #include "bcnames.h"
 #include "jithash.h"
 #include "jitprotos.h"
@@ -4841,6 +4842,16 @@ static void jitStateLogic(J9JITConfig *jitConfig, TR::CompilationInfo *compInfo,
         ;
     if (!TR::Options::getAOTCmdLineOptions()->getOption(TR_DisableGuardedCountingRecompilations)
         && !TR::Options::getJITCmdLineOptions()->getOption(TR_DisableGuardedCountingRecompilations)) {
+        auto now = std::chrono::system_clock::now();
+
+        auto minutes_since_epoch =
+            std::chrono::duration_cast<std::chrono::minutes>(now.time_since_epoch()).count();
+
+        int minute = (minutes_since_epoch % 60 + 60) % 60;
+
+        persistentInfo->_countForRecompile = (minute % 2);
+
+        /*
         if (!persistentInfo->_countForRecompile) // if counting is not yet enabled
         {
             bool enable = false;
@@ -4883,6 +4894,7 @@ static void jitStateLogic(J9JITConfig *jitConfig, TR::CompilationInfo *compInfo,
                         (uint32_t)crtElapsedTime, compInfo->getNumGCRRequestsQueued());
             }
         }
+        */
     }
 
     // Enable/Disable RI Buffer processing
