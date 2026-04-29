@@ -7373,6 +7373,7 @@ void *TR::CompilationInfoPerThreadBase::postCompilationTasks(J9VMThread *vmThrea
                 "For local compilations _chTableUpdateFlags should not have the bit set for this comp ID");
         }
     }
+
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
     void *startPC = NULL;
@@ -7423,8 +7424,8 @@ void *TR::CompilationInfoPerThreadBase::postCompilationTasks(J9VMThread *vmThrea
     }
 
     if (_compiler) {
-        // The KOT needs to survive at least until we're done committing virtual guards and we must not be holding the
-        // comp monitor prior to freeing the KOT because it requires VM access.
+        // The KOT needs to survive at least until we're done committing virtual guards and we must not be holding
+        // the comp monitor prior to freeing the KOT because it requires VM access.
         bool freeKnotNow = true;
 
         // However, if this is an out-of-process compilation on the server, and
@@ -7533,8 +7534,14 @@ void *TR::CompilationInfoPerThreadBase::postCompilationTasks(J9VMThread *vmThrea
                 (TR::Options::getAOTCmdLineOptions()->getEnableSCHintFlags()
                     & (TR_HintUpgrade | TR_HintHot | TR_HintScorching))) {
                 // read all hints at once because we may rely on more than just one type
-                uint16_t hints
-                    = _vm->sharedCache()->getAllEnabledHints(method) & (TR_HintUpgrade | TR_HintHot | TR_HintScorching);
+                uint16_t hints = 0;
+                try {
+                    hints = _vm->sharedCache()->getAllEnabledHints(method)
+                        & (TR_HintUpgrade | TR_HintHot | TR_HintScorching);
+                } catch (JITServer::StreamFailure &e) {
+                    TR_ASSERT_FATAL(false, "stream failure %s, %s", __FILE__, __LINE__);
+                }
+
                 // Now let's see if we need to schedule an AOT upgrade
                 if (hints) {
                     // must do this before queueing for an upgrade
@@ -7579,7 +7586,6 @@ void *TR::CompilationInfoPerThreadBase::postCompilationTasks(J9VMThread *vmThrea
 #endif
 
     // compilation success can be detected by checking startPC && startPC != _oldStartPC
-
     if (TR::Options::getAOTCmdLineOptions()->getOption(TR_EnableAOTRelocationTiming) && entry->isAotLoad()) {
         PORT_ACCESS_FROM_JITCONFIG(jitConfig);
         UDATA reloTime = j9time_usec_clock() - reloRuntime->reloStartTime();
@@ -7706,6 +7712,8 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
     vmThread->omrVMThread->vmState = J9VMSTATE_JIT | J9VMSTATE_MINOR;
     vmThread->jitMethodToBeCompiled = method;
 
+    int phase = 0;
+
     try {
         TR::RawAllocator rawAllocator(vmThread->javaVM);
         J9::SystemSegmentProvider defaultSegmentProvider(1 << 16,
@@ -7725,6 +7733,8 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
 
         preCompilationTasks(vmThread, entry, method, &aotCachedMethod, trMemory, canDoRelocatableCompile,
             eligibleForRelocatableCompile, reloRuntime);
+
+        phase = 1;
 
         CompileParameters compParam(this, _vm, vmThread, reloRuntime, entry->_optimizationPlan, regionSegmentProvider,
             dispatchRegion, trMemory, TR::CompileIlGenRequest(entry->getMethodDetails()), entry->_checkpointInProgress
@@ -7748,6 +7758,7 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
         ) {
             // Compile the method
             //
+            phase = 2;
 
             PORT_ACCESS_FROM_JITCONFIG(jitConfig);
             _compInfo.debugPrint("\tcompiling method", entry->getMethodDetails(), vmThread);
@@ -7771,16 +7782,21 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
                     vmThread, flags, &result);
             }
 
+            phase = 3;
+
             metaData = (protectedResult == 0) ? reinterpret_cast<TR_MethodMetaData *>(result) : NULL;
         } else {
             entry->_compErrCode = compilationRestrictedMethod;
         }
 
+        phase = 4;
         // This method has to be called from within the try block,
         // otherwise, the TR_Memory, TR::Region, and TR::SegmentAllocator
         // objects go out of scope and get destroyed.
         startPC = postCompilationTasks(vmThread, entry, method, aotCachedMethod, metaData, canDoRelocatableCompile,
             eligibleForRelocatableCompile, reloRuntime);
+
+        phase = 5;
     } catch (const std::exception &e) {
         entry->_compErrCode = compilationFailure;
 
@@ -7802,6 +7818,7 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
         // memory region has gone out of scope. However, in some rare
         // cases (see issue: #23845), the object can get deallocated but the
         // pointer returned by getCompilation can be non-null.
+        TR_ASSERT_FATAL(getCompilation() == NULL, "Comp not null, e=%s, post_wrapped_compile=%d", e.what(), phase);
         setCompilation(NULL);
 
         // This method has to be called from within the catch block,
