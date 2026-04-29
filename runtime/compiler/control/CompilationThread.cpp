@@ -7798,9 +7798,11 @@ void *TR::CompilationInfoPerThreadBase::compile(J9VMThread *vmThread, TR_MethodT
 
         Trc_JIT_outOfMemory(vmThread);
 
-        // Compilation object has already been deallocated by this point
-        // due to heap memory region going out of scope
-        TR_ASSERT_FATAL(getCompilation() == NULL, "Compilation must be deallocated and NULL by this point");
+        // The compilation object will be deallocated since the heap
+        // memory region has gone out of scope. However, in some rare
+        // cases (see issue: #23845), the object can get deallocated but the
+        // pointer returned by getCompilation can be non-null.
+        setCompilation(NULL);
 
         // This method has to be called from within the catch block,
         // since moving it outside would result in it getting invoked
