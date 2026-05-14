@@ -3141,6 +3141,11 @@ void TR_IProfiler::checkMethodHashTable()
 
     fprintf(fout, "Printing method hash table\n");
     fflush(fout);
+
+    J9JITConfig *jitcfg = _compInfo->getJITConfig();
+    J9JavaVM *vm = jitConfig->javaVM;
+    J9VMThread *vmContext = vm->internalVMFunctions->currentVMThread(vm);
+
     for (int32_t bucket = 0; bucket < TR::Options::_iProfilerMethodHashTableSize; bucket++) {
         for (TR_IPMethodHashTableEntry *entry = _methodHashTable[bucket]; entry; entry = entry->_next) {
             J9Method *method = (J9Method *)entry->_method;
@@ -3165,8 +3170,32 @@ void TR_IProfiler::checkMethodHashTable()
                 count++;
                 TR_OpaqueMethodBlock *caller = it->getMethod();
                 if (caller) {
-                    fprintf(fout, "\t%8p pcIndex %3" OMR_PRIu32 " weight %3" OMR_PRIu32 "\t", caller, it->getPCIndex(),
-                        it->getWeight());
+                    void *startPC = TR::CompilationInfo::getPCIfCompiled((J9Method *)caller);
+                    J9JITExceptionTable *metaData
+                        = startPC ? jitConfig->jitGetExceptionTableFromPC(vmContext, (UDATA)startPC) : NULL;
+
+                    // Check if this callsite has been inlined
+                    bool isInlined = false;
+                    if (metaData) {
+                        U_32 numInlinedCallSites = getNumInlinedCallSites(metaData);
+                        uint32_t callsitePCIndex = it->getPCIndex();
+
+                        for (U_32 i = 0; i < numInlinedCallSites; i++) {
+                            TR_InlinedCallSite *inlinedCallSite
+                                = (TR_InlinedCallSite *)getInlinedCallSiteArrayElement(metaData, i);
+                            if (inlinedCallSite) {
+                                // Check if the inlined method matches the callee and the bytecode index matches
+                                if (inlinedCallSite->_methodInfo == (TR_OpaqueMethodBlock *)method
+                                    && inlinedCallSite->_byteCodeInfo.getByteCodeIndex() == callsitePCIndex) {
+                                    isInlined = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    fprintf(fout, "\t%8p pcIndex %3" OMR_PRIu32 " weight %3" OMR_PRIu32 "%s\t", caller,
+                        it->getPCIndex(), it->getWeight(), isInlined ? " [INLINED]" : "");
                     if (methodNames) {
                         J9UTF8 *caller_nameUTF8;
                         J9UTF8 *caller_signatureUTF8;
