@@ -1377,6 +1377,10 @@ public:
         return _newlyExtendedClasses;
     }
 
+    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void *> *getJ9mStartPC() const { return _j9mStartpc; }
+
+    TR::Monitor *getJ9mStartPCMonitor() const { return _j9mStartpcMonitor; }
+
     void classGotNewlyExtended(TR_OpaqueClassBlock *clazz)
     {
         auto &newlyExtendedClasses = *getNewlyExtendedClasses();
@@ -1389,6 +1393,10 @@ public:
     {
         _newlyExtendedClasses = it;
     }
+
+    void setJ9mStartPC(PersistentUnorderedMap<TR_OpaqueMethodBlock *, void *> *it) { _j9mStartpc = it; }
+
+    void setJ9mStartPCMonitor(TR::Monitor *mon) { _j9mStartpcMonitor = mon; }
 
     TR::Monitor *getclassesCachedAtServerMonitor() const { return _classesCachedAtServerMonitor; }
 
@@ -1728,6 +1736,8 @@ private:
                                         // order
     PersistentUnorderedMap<TR_OpaqueClassBlock *, uint8_t>
         *_newlyExtendedClasses; // JITServer table of newly extended classes
+    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void *> *_j9mStartpc;
+    TR::Monitor *_j9mStartpcMonitor;
     uint8_t _chTableUpdateFlags;
     uint32_t _localGCCounter; // Number of local gc cycles done
     std::string _sslRootCerts;

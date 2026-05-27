@@ -1749,6 +1749,11 @@ extern "C" jint onLoadInternal(J9JavaVM *javaVM, J9JITConfig *jitConfig, char *x
 
     jitConfig->jitAddNewLowToHighRSSRegion = jitAddNewLowToHighRSSRegion;
 
+    compInfo->setJ9mStartPC(new (PERSISTENT_NEW) PersistentUnorderedMap<TR_OpaqueMethodBlock *, void *>(
+        PersistentUnorderedMap<TR_OpaqueClassBlock *, void *>::allocator_type(TR::Compiler->persistentAllocator())));
+
+    compInfo->setJ9mStartPCMonitor(TR::Monitor::create("JIT-just a prototype"));
+
 #if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
     if (TR::Options::getCmdLineOptions()->getTransientClassRegex()
 #if defined(J9VM_OPT_JITSERVER)

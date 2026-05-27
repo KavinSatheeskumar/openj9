@@ -356,6 +356,15 @@ public:
 
     void setRecentProfileInfo(TR_PersistentProfileInfo *ppi) { setForSharedInfo(&_recentProfileInfo, ppi); }
 
+    void *getStartPc() { return _startpc; }
+
+    void setStartPC(void *startpc)
+    {
+        if (!_startpc) {
+            _startpc = startpc;
+        }
+    }
+
     // ### IMPORTANT ###
     // Method info must always be the first field in this structure
     // Flags must always be second
@@ -382,6 +391,8 @@ private:
 
     TR_PersistentProfileInfo *_bestProfileInfo;
     TR_PersistentProfileInfo *_recentProfileInfo;
+
+    void *_startpc;
 
     TR_PersistentProfileInfo *getForSharedInfo(TR_PersistentProfileInfo **ptr);
     void setForSharedInfo(TR_PersistentProfileInfo **ptr, TR_PersistentProfileInfo *newInfo);

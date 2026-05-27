@@ -67,6 +67,7 @@
 #include "runtime/J9Runtime.hpp"
 #include "runtime/J9VMAccess.hpp"
 #include "runtime/RelocationRuntime.hpp"
+#include "MethodMetaData.h"
 #include "control/CompilationRuntime.hpp"
 #include "env/ClassLoaderTable.hpp"
 #include "env/J9JitMemory.hpp"
@@ -3150,10 +3151,10 @@ void TR_IProfiler::checkMethodHashTable()
         for (TR_IPMethodHashTableEntry *entry = _methodHashTable[bucket]; entry; entry = entry->_next) {
             J9Method *method = (J9Method *)entry->_method;
             fprintf(fout, "Callee method %p", method);
+            J9UTF8 *signatureUTF8;
+            J9UTF8 *nameUTF8;
+            J9UTF8 *methodClazzUTRF8;
             if (methodNames) {
-                J9UTF8 *nameUTF8;
-                J9UTF8 *signatureUTF8;
-                J9UTF8 *methodClazzUTRF8;
                 getClassNameSignatureFromMethod(method, methodClazzUTRF8, nameUTF8, signatureUTF8);
                 fprintf(fout, "\t%.*s.%.*s%.*s", J9UTF8_LENGTH(methodClazzUTRF8), J9UTF8_DATA(methodClazzUTRF8),
                     J9UTF8_LENGTH(nameUTF8), J9UTF8_DATA(nameUTF8), J9UTF8_LENGTH(signatureUTF8),
@@ -3164,6 +3165,8 @@ void TR_IProfiler::checkMethodHashTable()
             fprintf(fout, "\n");
             fflush(fout);
             int32_t count = 0;
+            int32_t inlined_count = 0;
+            bool method_compiled = TR::CompilationInfo::isCompiled((J9Method *)method);
             uint32_t i = 0;
 
             for (TR_IPMethodData *it = &entry->_caller; it; it = it->next) {
@@ -3171,6 +3174,38 @@ void TR_IProfiler::checkMethodHashTable()
                 TR_OpaqueMethodBlock *caller = it->getMethod();
                 if (caller) {
                     void *startPC = TR::CompilationInfo::getPCIfCompiled((J9Method *)caller);
+                    if (startPC) {
+                        TR_PersistentMethodInfo *methodInfo = TR::Recompilation::getMethodInfoFromPC(startPC);
+                        if (methodInfo && methodInfo->getStartPc()) {
+                            startPC = methodInfo->getStartPc();
+                        }
+                    }
+
+                    //{
+                    //    OMR::CriticalSection cs(getCompInfo()->getJ9mStartPCMonitor());
+                    //    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void*> *mp = getCompInfo()->getJ9mStartPC();
+                    //    if (mp->find((TR_OpaqueMethodBlock*)caller) != mp->end()) {
+                    //        startPC = (*mp)[(TR_OpaqueMethodBlock*)method];
+                    //    }
+                    //}
+
+                    // jitcfg->getPersistentInfo();
+
+                    // Find the oldest compilation by following the chain of previous compilations
+                    /*
+                    if (startPC) {
+                        TR_PersistentJittedBodyInfo *bodyInfo = TR::Recompilation::getJittedBodyInfoFromPC(startPC);
+                        while (bodyInfo && bodyInfo->getStartPCAfterPreviousCompile()) {
+                            void *previousStartPC = bodyInfo->getStartPCAfterPreviousCompile();
+                            TR_PersistentJittedBodyInfo *previousBodyInfo =
+                    TR::Recompilation::getJittedBodyInfoFromPC(previousStartPC); if (!previousBodyInfo) { break; } else
+                    if (previousBodyInfo->getIsAotedBody() || previousBodyInfo->getIsInvalidated()) { bodyInfo =
+                    previousBodyInfo; } else { startPC = previousStartPC; bodyInfo = previousBodyInfo;
+
+                            }
+                        }
+                    }
+                    */
                     J9JITExceptionTable *metaData
                         = startPC ? jitConfig->jitGetExceptionTableFromPC(vmContext, (UDATA)startPC) : NULL;
 
@@ -3193,9 +3228,10 @@ void TR_IProfiler::checkMethodHashTable()
                             }
                         }
                     }
+                    inlined_count += isInlined;
 
-                    fprintf(fout, "\t%8p pcIndex %3" OMR_PRIu32 " weight %3" OMR_PRIu32 "%s\t", caller,
-                        it->getPCIndex(), it->getWeight(), isInlined ? " [INLINED]" : "");
+                    fprintf(fout, "\t%8p pcIndex %3" OMR_PRIu32 " weight %3" OMR_PRIu32 "%s %p\t", caller,
+                        it->getPCIndex(), it->getWeight(), isInlined ? " [INLINED]" : "", startPC);
                     if (methodNames) {
                         J9UTF8 *caller_nameUTF8;
                         J9UTF8 *caller_signatureUTF8;
@@ -3208,7 +3244,9 @@ void TR_IProfiler::checkMethodHashTable()
                             J9UTF8_DATA(caller_nameUTF8), J9UTF8_LENGTH(caller_signatureUTF8),
                             J9UTF8_DATA(caller_signatureUTF8));
                     }
-                    fprintf(fout, "\n");
+                    fprintf(fout,
+                        ""
+                        "\n");
                     fflush(fout);
                 } else {
                     fprintf(fout, "caller method is null\n");
@@ -3217,6 +3255,23 @@ void TR_IProfiler::checkMethodHashTable()
             // Print the other bucket
             fprintf(fout, "\tother bucket: weight %d\n", entry->_otherBucket.getWeight());
             fprintf(fout, "Caller list length = %d\n", count);
+            if (method_compiled && count && inlined_count == count) {
+                fprintf(fout, "COMPILATION REDUNDANT %.*s.%.*s%.*s\n", J9UTF8_LENGTH(methodClazzUTRF8),
+                    J9UTF8_DATA(methodClazzUTRF8), J9UTF8_LENGTH(nameUTF8), J9UTF8_DATA(nameUTF8),
+                    J9UTF8_LENGTH(signatureUTF8), J9UTF8_DATA(signatureUTF8));
+            } else if (method_compiled) {
+                fprintf(fout, "COMPILATION NOT REDUNDANT\n");
+            } else {
+                fprintf(fout, "NOT COMPILED\n");
+            }
+            void *startPC = TR::CompilationInfo::getPCIfCompiled((J9Method *)method);
+            while (startPC) {
+                fprintf(fout, "startPC: %p\n", startPC);
+                TR_PersistentJittedBodyInfo *bodyInfo = TR::Recompilation::getJittedBodyInfoFromPC(startPC);
+                if (!bodyInfo)
+                    break;
+                startPC = bodyInfo->getStartPCAfterPreviousCompile();
+            }
             fflush(fout);
             faninHisto.update(count);
         }

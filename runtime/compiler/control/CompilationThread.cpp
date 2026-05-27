@@ -10278,6 +10278,17 @@ void TR::CompilationInfoPerThreadBase::logCompilationSuccess(J9VMThread *vmThrea
                 }
             }
 
+            //{
+            //    OMR::CriticalSection cs(getCompilationInfo()->getJ9mStartPCMonitor());
+            //    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void*> *mp = getCompilationInfo()->getJ9mStartPC();
+            //    if (mp->find((TR_OpaqueMethodBlock*)method) == mp->end()) {
+            //        (*mp)[(TR_OpaqueMethodBlock*)method] = (void*)startPC;
+            //    }
+            //}
+
+            if (TR_PersistentMethodInfo *info = TR_PersistentMethodInfo::get(compilee)) {
+                info->setStartPC((void *)startPC);
+            }
             // If set, print verbose compile results, gc/exception, and/or time.
             if (TR::Options::isAnyVerboseOptionSet(TR_VerboseCompileEnd, TR_VerboseGc, TR_VerboseRecompile,
                     TR_VerbosePerformance, TR_VerboseOptimizer)
