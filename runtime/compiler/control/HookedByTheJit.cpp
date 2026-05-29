@@ -706,6 +706,37 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
         }
     }
 
+    bool scale = false;
+    char buf[3073];
+    J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
+    J9UTF8 *name = J9ROMMETHOD_NAME(J9_ROM_METHOD_FROM_RAM_METHOD(method));
+    J9UTF8 *signature = J9ROMMETHOD_SIGNATURE(J9_ROM_METHOD_FROM_RAM_METHOD(method));
+    snprintf(buf, sizeof(buf), "%.*s.%.*s%.*s", J9UTF8_LENGTH(className), utf8Data(className), J9UTF8_LENGTH(name),
+        utf8Data(name), J9UTF8_LENGTH(signature), utf8Data(signature));
+    buf[3072] = '\0';
+
+    do {
+        ::FILE *fptr = fopen("/Users/kavinsatheeskumar/Desktop/dev-env/stuff/j9m2.csv", "r");
+        if (!fptr)
+            break;
+
+        // TR::FILE f(fptr);
+        char line[3073];
+        while (fgets(line, sizeof(line), fptr)) {
+            line[strcspn(line, "\n")] = '\0';
+            if (!strcmp(buf, line)) {
+                scale = true;
+                TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "match found: %s", buf);
+                break;
+            }
+        }
+        fclose(fptr);
+    } while (false);
+
+    if (scale) { // method in cache;
+        count *= 200;
+    }
+
     // Option to display chosen counts to track possible bugs
     if (optionsJIT->getVerboseOption(TR_VerboseCounts)) {
         char buffer[500];
@@ -718,12 +749,6 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
     if (TR::Options::getJITCmdLineOptions()->getOption(TR_DumpInitialMethodNamesAndCounts)
         || TR::Options::getAOTCmdLineOptions()->getOption(TR_DumpInitialMethodNamesAndCounts)) {
         bool containsInfo = sharedCacheContainsProfilingInfoForMethod(vmThread, compInfo, romMethod);
-        char buf[3072];
-        J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
-        J9UTF8 *name = J9ROMMETHOD_NAME(J9_ROM_METHOD_FROM_RAM_METHOD(method));
-        J9UTF8 *signature = J9ROMMETHOD_SIGNATURE(J9_ROM_METHOD_FROM_RAM_METHOD(method));
-        snprintf(buf, sizeof(buf), "%.*s.%.*s%.*s", J9UTF8_LENGTH(className), utf8Data(className), J9UTF8_LENGTH(name),
-            utf8Data(name), J9UTF8_LENGTH(signature), utf8Data(signature));
         printf("Initial: Signature %s Count %d isLoopy %d isAOT %" OMR_PRIuPTR
                " is in SCC %d SCCContainsProfilingInfo %d \n",
             buf, TR::CompilationInfo::getInvocationCount(method), J9ROMMETHOD_HAS_BACKWARDS_BRANCHES(romMethod),
