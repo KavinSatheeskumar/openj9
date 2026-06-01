@@ -7528,99 +7528,126 @@ void *TR::CompilationInfoPerThreadBase::postCompilationTasks(J9VMThread *vmThrea
         entry->_tryCompilingAgain = true;
     } else // compilation will not be retried, either because it succeeded or because we don't want to
     {
-        TR_PersistentJittedBodyInfo *bodyInfo;
-        void *extra = NULL;
-        // JITServer: Can not acquire the jitted body info on the server
-        if (!entry->isOutOfProcessCompReq() && entry->isDLTCompile() && !startPC
-            && (extra = TR::CompilationInfo::getPCIfCompiled(method)) && // DLT compilation that failed too many times
-            (bodyInfo = TR::Recompilation::getJittedBodyInfoFromPC(
-                 extra))) // do not use entry->_oldStartPC which is probably 0. Use the most up-to-date startPC
-        {
-            bodyInfo->getMethodInfo()->setHasFailedDLTCompRetrials(true);
-        }
-
-        startPC = TR::CompilationInfo::compilationEnd(vmThread, entry->getMethodDetails(), jitConfig,
-            metaData ? reinterpret_cast<void *>(metaData->startPC) : 0, entry->_oldStartPC,
-            true, /*preventFutureMethodCountingOnFailure */
-            _vm, entry, _compiler);
-
-        if (TR::Options::getVerboseOption(TR_VerboseCompilationDispatch))
-            TR_VerboseLog::writeLineLocked(TR_Vlog_DISPATCH, "CompilationEnd returning startPC=%p  metadata=%p",
-                startPC, metaData);
-        // AOT compilations can fail on purpose because we want to load
-        // the AOT body later on. This case is signalled by having a metaData != 0
-        // but a startPC == entry->_oldStartPC == 0
-        // For remote compilations at the JITClient we replenish the invocation count in remoteCompilationEnd
-        if (metaData && !entry->_oldStartPC && !startPC && !entry->isOutOfProcessCompReq()
-            && !entry->isRemoteCompReq()) {
-            TR_ASSERT(canDoRelocatableCompile, "compilationEnd() can fail only for relocating AOT compilations\n");
-            TR_ASSERT(!entry->_oldStartPC,
-                "We expect compilationEnd() to fail only for AOT compilations which are first time compilations\n");
-
-            TR::CompilationInfo::replenishInvocationCount(method, _compiler);
-        }
-
-        if (!metaData && !entry->_oldStartPC && // First time compilation failed
-            !entry->isOutOfProcessCompReq()) {
-            // If we didn't compile the method because filters disallowed it,
-            // then do not consider this compilation a failure
-            TR_VlogTag vlogTag = (entry->_compErrCode == compilationRestrictedMethod) ? TR_Vlog_INFO : TR_Vlog_FAILURE;
-            if (TR::Options::isAnyVerboseOptionSet(TR_VerboseCompFailure, TR_VerbosePerformance)) {
-                TR_VerboseLog::CriticalSection vlogLock;
-                TR_VerboseLog::write(vlogTag, "Method ");
-                CompilationInfo::printMethodNameToVlog(method);
-                TR_VerboseLog::writeLine(" will continue as interpreted");
-            }
-            if (entry->_compErrCode != compilationRestrictedMethod && // do not look at methods excluded by filters
-                entry->_compErrCode != compilationExcessiveSize) // do not look at failures due to code cache size
+        try {
+            TR_PersistentJittedBodyInfo *bodyInfo;
+            void *extra = NULL;
+            // JITServer: Can not acquire the jitted body info on the server
+            if (!entry->isOutOfProcessCompReq() && entry->isDLTCompile() && !startPC
+                && (extra = TR::CompilationInfo::getPCIfCompiled(method))
+                && // DLT compilation that failed too many times
+                (bodyInfo = TR::Recompilation::getJittedBodyInfoFromPC(
+                     extra))) // do not use entry->_oldStartPC which is probably 0. Use the most up-to-date startPC
             {
-                int32_t numSeriousFailures = _compInfo.incNumSeriousFailures();
-                if (numSeriousFailures > TR::Options::_seriousCompFailureThreshold) {
-                    // Generate a trace point
-                    Trc_JIT_ManyCompFailures(vmThread, numSeriousFailures);
-                }
+                bodyInfo->getMethodInfo()->setHasFailedDLTCompRetrials(true);
             }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 1!");
         }
 
-        if (entry->isAotLoad() && entry->_oldStartPC == 0 && startPC != 0) // AOT load that succeeded
-        {
-            // We know this is a first time compilation (otherwise we would not attempt an AOT load)
-            // Before grabbing the compilation monitor and loading the AOT body
-            // let's check the AOT hints (optimistically assuming that the AOT load will succeed)
-            if (_onSeparateThread && entry->_async && // KEN need to pass in onSeparateThread?
-                (TR::Options::getAOTCmdLineOptions()->getEnableSCHintFlags()
-                    & (TR_HintUpgrade | TR_HintHot | TR_HintScorching))) {
-                // read all hints at once because we may rely on more than just one type
-                uint16_t hints
-                    = _vm->sharedCache()->getAllEnabledHints(method) & (TR_HintUpgrade | TR_HintHot | TR_HintScorching);
-                // Now let's see if we need to schedule an AOT upgrade
-                if (hints) {
-                    // must do this before queueing for an upgrade
-                    entry->_newStartPC = startPC;
+        try {
+            startPC = TR::CompilationInfo::compilationEnd(vmThread, entry->getMethodDetails(), jitConfig,
+                metaData ? reinterpret_cast<void *>(metaData->startPC) : 0, entry->_oldStartPC,
+                true, /*preventFutureMethodCountingOnFailure */
+                _vm, entry, _compiler);
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 2!");
+        }
 
-                    static char *disableQueueLPQAOTUpgrade = feGetEnv("TR_DisableQueueLPQAOTUpgrade");
-                    if (TR::Options::getAOTCmdLineOptions()->getOption(TR_EnableSymbolValidationManager)
-                        && !disableQueueLPQAOTUpgrade) {
-                        _compInfo.getLowPriorityCompQueue().addUpgradeReqToLPQ(getMethodBeingCompiled());
-                    } else {
-                        _compInfo.queueForcedAOTUpgrade(entry, hints, _vm);
+        try {
+            if (TR::Options::getVerboseOption(TR_VerboseCompilationDispatch))
+                TR_VerboseLog::writeLineLocked(TR_Vlog_DISPATCH, "CompilationEnd returning startPC=%p  metadata=%p",
+                    startPC, metaData);
+            // AOT compilations can fail on purpose because we want to load
+            // the AOT body later on. This case is signalled by having a metaData != 0
+            // but a startPC == entry->_oldStartPC == 0
+            // For remote compilations at the JITClient we replenish the invocation count in remoteCompilationEnd
+            if (metaData && !entry->_oldStartPC && !startPC && !entry->isOutOfProcessCompReq()
+                && !entry->isRemoteCompReq()) {
+                TR_ASSERT(canDoRelocatableCompile, "compilationEnd() can fail only for relocating AOT compilations\n");
+                TR_ASSERT(!entry->_oldStartPC,
+                    "We expect compilationEnd() to fail only for AOT compilations which are first time compilations\n");
+
+                TR::CompilationInfo::replenishInvocationCount(method, _compiler);
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 3!");
+        }
+
+        try {
+            if (!metaData && !entry->_oldStartPC && // First time compilation failed
+                !entry->isOutOfProcessCompReq()) {
+                // If we didn't compile the method because filters disallowed it,
+                // then do not consider this compilation a failure
+                TR_VlogTag vlogTag
+                    = (entry->_compErrCode == compilationRestrictedMethod) ? TR_Vlog_INFO : TR_Vlog_FAILURE;
+                if (TR::Options::isAnyVerboseOptionSet(TR_VerboseCompFailure, TR_VerbosePerformance)) {
+                    TR_VerboseLog::CriticalSection vlogLock;
+                    TR_VerboseLog::write(vlogTag, "Method ");
+                    CompilationInfo::printMethodNameToVlog(method);
+                    TR_VerboseLog::writeLine(" will continue as interpreted");
+                }
+                if (entry->_compErrCode != compilationRestrictedMethod && // do not look at methods excluded by filters
+                    entry->_compErrCode != compilationExcessiveSize) // do not look at failures due to code cache size
+                {
+                    int32_t numSeriousFailures = _compInfo.incNumSeriousFailures();
+                    if (numSeriousFailures > TR::Options::_seriousCompFailureThreshold) {
+                        // Generate a trace point
+                        Trc_JIT_ManyCompFailures(vmThread, numSeriousFailures);
                     }
                 }
             }
+
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 4!");
         }
 
-        // Check conditions for adding to JProfiling queue.
-        // TODO: How should be AOT loads treated?
-        if (_addToJProfilingQueue && entry->_oldStartPC == 0
-            && startPC != 0) // Must be a first time compilation that succeeded
-        {
-            // Add request to JProfiling Queue
-            TR::IlGeneratorMethodDetails details(method);
-            getCompilationInfo()->getJProfilingCompQueue().createCompReqAndQueueIt(details, startPC);
+        try {
+            if (entry->isAotLoad() && entry->_oldStartPC == 0 && startPC != 0) // AOT load that succeeded
+            {
+                // We know this is a first time compilation (otherwise we would not attempt an AOT load)
+                // Before grabbing the compilation monitor and loading the AOT body
+                // let's check the AOT hints (optimistically assuming that the AOT load will succeed)
+                if (_onSeparateThread && entry->_async && // KEN need to pass in onSeparateThread?
+                    (TR::Options::getAOTCmdLineOptions()->getEnableSCHintFlags()
+                        & (TR_HintUpgrade | TR_HintHot | TR_HintScorching))) {
+                    // read all hints at once because we may rely on more than just one type
+                    uint16_t hints = _vm->sharedCache()->getAllEnabledHints(method)
+                        & (TR_HintUpgrade | TR_HintHot | TR_HintScorching);
+                    // Now let's see if we need to schedule an AOT upgrade
+                    if (hints) {
+                        // must do this before queueing for an upgrade
+                        entry->_newStartPC = startPC;
+
+                        static char *disableQueueLPQAOTUpgrade = feGetEnv("TR_DisableQueueLPQAOTUpgrade");
+                        if (TR::Options::getAOTCmdLineOptions()->getOption(TR_EnableSymbolValidationManager)
+                            && !disableQueueLPQAOTUpgrade) {
+                            _compInfo.getLowPriorityCompQueue().addUpgradeReqToLPQ(getMethodBeingCompiled());
+                        } else {
+                            _compInfo.queueForcedAOTUpgrade(entry, hints, _vm);
+                        }
+                    }
+                }
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 5!");
         }
 
-        if (entry->_compErrCode == compilationOK && _vm->isAOT_DEPRECATED_DO_NOT_USE())
-            _compInfo._statNumAotedMethods++;
+        try {
+            // Check conditions for adding to JProfiling queue.
+            // TODO: How should be AOT loads treated?
+            if (_addToJProfilingQueue && entry->_oldStartPC == 0
+                && startPC != 0) // Must be a first time compilation that succeeded
+            {
+                // Add request to JProfiling Queue
+                TR::IlGeneratorMethodDetails details(method);
+                getCompilationInfo()->getJProfilingCompQueue().createCompReqAndQueueIt(details, startPC);
+            }
+
+            if (entry->_compErrCode == compilationOK && _vm->isAOT_DEPRECATED_DO_NOT_USE())
+                _compInfo._statNumAotedMethods++;
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "ASSERT 6!");
+        }
     }
 
 #if defined(J9VM_OPT_JITSERVER) && defined(J9VM_OPT_OPENJDK_METHODHANDLE)
