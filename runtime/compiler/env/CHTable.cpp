@@ -781,82 +781,142 @@ VirtualGuardInfoForCHTable getImportantVGuardInfo(TR::Compilation *comp, TR_Virt
 CHTableCommitData TR_CHTable::computeDataForCHTableCommit(TR::Compilation *comp)
 {
     // collect info from TR_CHTable
-    std::vector<TR_OpaqueClassBlock *> classes = _classes
-        ? std::vector<TR_OpaqueClassBlock *>(&(_classes->element(0)), (&(_classes->element(_classes->lastIndex()))) + 1)
-        : std::vector<TR_OpaqueClassBlock *>();
-    std::vector<TR_OpaqueClassBlock *> classesThatShouldNotBeNewlyExtended = _classesThatShouldNotBeNewlyExtended
-        ? std::vector<TR_OpaqueClassBlock *>(&_classesThatShouldNotBeNewlyExtended->element(0),
-              &_classesThatShouldNotBeNewlyExtended->element(_classesThatShouldNotBeNewlyExtended->lastIndex()) + 1)
-        : std::vector<TR_OpaqueClassBlock *>();
-    std::vector<TR_ResolvedMethod *> preXMethods(_preXMethods ? _preXMethods->size() : 0);
-    for (size_t i = 0; i < preXMethods.size(); i++) {
-        TR_ResolvedMethod *method = _preXMethods->element(i);
-        TR_ResolvedJ9JITServerMethod *JITServerMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(method);
-        preXMethods[i] = JITServerMethod->getRemoteMirror();
+    std::vector<TR_OpaqueClassBlock *> classes;
+    try {
+        classes = _classes ? std::vector<TR_OpaqueClassBlock *>(&(_classes->element(0)),
+                                 (&(_classes->element(_classes->lastIndex()))) + 1)
+                           : std::vector<TR_OpaqueClassBlock *>();
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: collecting classes from _classes");
     }
 
-    cleanupNewlyExtendedInfo(comp);
+    std::vector<TR_OpaqueClassBlock *> classesThatShouldNotBeNewlyExtended;
+    try {
+        classesThatShouldNotBeNewlyExtended = _classesThatShouldNotBeNewlyExtended
+            ? std::vector<TR_OpaqueClassBlock *>(&_classesThatShouldNotBeNewlyExtended->element(0),
+                  &_classesThatShouldNotBeNewlyExtended->element(_classesThatShouldNotBeNewlyExtended->lastIndex()) + 1)
+            : std::vector<TR_OpaqueClassBlock *>();
+    } catch (...) {
+        TR_ASSERT_FATAL(false,
+            "Exception in computeDataForCHTableCommit: collecting classesThatShouldNotBeNewlyExtended");
+    }
+
+    std::vector<TR_ResolvedMethod *> preXMethods;
+    try {
+        preXMethods = std::vector<TR_ResolvedMethod *>(_preXMethods ? _preXMethods->size() : 0);
+        for (size_t i = 0; i < preXMethods.size(); i++) {
+            TR_ResolvedMethod *method = _preXMethods->element(i);
+            TR_ResolvedJ9JITServerMethod *JITServerMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(method);
+            preXMethods[i] = JITServerMethod->getRemoteMirror();
+        }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: processing preXMethods");
+    }
+
+    try {
+        cleanupNewlyExtendedInfo(comp);
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: cleanupNewlyExtendedInfo");
+    }
 
     // collect virtual guard info
-    const TR::Compilation::GuardSet &vguards = comp->getVirtualGuards();
     std::vector<VirtualGuardForCHTable> serialVGuards;
-    serialVGuards.reserve(vguards.size());
+    try {
+        const TR::Compilation::GuardSet &vguards = comp->getVirtualGuards();
+        serialVGuards.reserve(vguards.size());
 
-    for (TR_VirtualGuard *vguard : vguards) {
-        VirtualGuardInfoForCHTable info = getImportantVGuardInfo(comp, vguard);
+        for (TR_VirtualGuard *vguard : vguards) {
+            VirtualGuardInfoForCHTable info = getImportantVGuardInfo(comp, vguard);
 
-        std::vector<TR_VirtualGuardSite> nopSites;
+            std::vector<TR_VirtualGuardSite> nopSites;
 
-        {
-            List<TR_VirtualGuardSite> &sites = vguard->getNOPSites();
-            ListIterator<TR_VirtualGuardSite> it(&sites);
-            for (TR_VirtualGuardSite *site = it.getFirst(); site; site = it.getNext())
-                nopSites.push_back(*site);
-        }
-
-        std::vector<VirtualGuardInfoForCHTable> innerAssumptions;
-        {
-            ListIterator<TR_InnerAssumption> it(&vguard->getInnerAssumptions());
-            for (TR_InnerAssumption *inner = it.getFirst(); inner; inner = it.getNext()) {
-                VirtualGuardInfoForCHTable innerInfo = getImportantVGuardInfo(comp, vguard);
-                innerAssumptions.push_back(innerInfo);
+            {
+                List<TR_VirtualGuardSite> &sites = vguard->getNOPSites();
+                ListIterator<TR_VirtualGuardSite> it(&sites);
+                for (TR_VirtualGuardSite *site = it.getFirst(); site; site = it.getNext())
+                    nopSites.push_back(*site);
             }
-        }
 
-        serialVGuards.push_back(std::make_tuple(info, nopSites, innerAssumptions));
+            std::vector<VirtualGuardInfoForCHTable> innerAssumptions;
+            {
+                ListIterator<TR_InnerAssumption> it(&vguard->getInnerAssumptions());
+                for (TR_InnerAssumption *inner = it.getFirst(); inner; inner = it.getNext()) {
+                    VirtualGuardInfoForCHTable innerInfo = getImportantVGuardInfo(comp, vguard);
+                    innerAssumptions.push_back(innerInfo);
+                }
+            }
+
+            serialVGuards.push_back(std::make_tuple(info, nopSites, innerAssumptions));
+        }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: collecting virtual guard info");
     }
 
-    TR::list<TR_VirtualGuardSite *> &sideEffectPatchSites = *comp->getSideEffectGuardPatchSites();
     std::vector<TR_VirtualGuardSite> sideEffectPatchSitesVec;
-    for (TR_VirtualGuardSite *site : sideEffectPatchSites)
-        sideEffectPatchSitesVec.push_back(*site);
+    try {
+        TR::list<TR_VirtualGuardSite *> &sideEffectPatchSites = *comp->getSideEffectGuardPatchSites();
+        for (TR_VirtualGuardSite *site : sideEffectPatchSites)
+            sideEffectPatchSitesVec.push_back(*site);
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: collecting sideEffectPatchSites");
+    }
 
     FlatClassLoadCheck compClassesThatShouldNotBeLoaded;
-    for (TR_ClassLoadCheck *clc = comp->getClassesThatShouldNotBeLoaded()->getFirst(); clc; clc = clc->getNext())
-        compClassesThatShouldNotBeLoaded.emplace_back(std::string(clc->_name, clc->_length));
+    try {
+        for (TR_ClassLoadCheck *clc = comp->getClassesThatShouldNotBeLoaded()->getFirst(); clc; clc = clc->getNext())
+            compClassesThatShouldNotBeLoaded.emplace_back(std::string(clc->_name, clc->_length));
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: collecting compClassesThatShouldNotBeLoaded");
+    }
 
     FlatClassExtendCheck compClassesThatShouldNotBeNewlyExtended;
-    for (TR_ClassExtendCheck *cec = comp->getClassesThatShouldNotBeNewlyExtended()->getFirst(); cec;
-         cec = cec->getNext())
-        compClassesThatShouldNotBeNewlyExtended.emplace_back(cec->_clazz);
+    try {
+        for (TR_ClassExtendCheck *cec = comp->getClassesThatShouldNotBeNewlyExtended()->getFirst(); cec;
+             cec = cec->getNext())
+            compClassesThatShouldNotBeNewlyExtended.emplace_back(cec->_clazz);
+    } catch (...) {
+        TR_ASSERT_FATAL(false,
+            "Exception in computeDataForCHTableCommit: collecting compClassesThatShouldNotBeNewlyExtended");
+    }
 
-    auto *compClassesForOSRRedefinition = comp->getClassesForOSRRedefinition();
-    std::vector<TR_OpaqueClassBlock *> classesForOSRRedefinition(compClassesForOSRRedefinition->size());
-    for (int i = 0; i < compClassesForOSRRedefinition->size(); ++i)
-        classesForOSRRedefinition[i] = (*compClassesForOSRRedefinition)[i];
+    std::vector<TR_OpaqueClassBlock *> classesForOSRRedefinition;
+    try {
+        auto *compClassesForOSRRedefinition = comp->getClassesForOSRRedefinition();
+        classesForOSRRedefinition = std::vector<TR_OpaqueClassBlock *>(compClassesForOSRRedefinition->size());
+        for (int i = 0; i < compClassesForOSRRedefinition->size(); ++i)
+            classesForOSRRedefinition[i] = (*compClassesForOSRRedefinition)[i];
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: collecting classesForOSRRedefinition");
+    }
 
-    auto *compClassesForStaticFinalFieldModification = comp->getClassesForStaticFinalFieldModification();
-    std::vector<TR_OpaqueClassBlock *> classesForStaticFinalFieldModification(
-        compClassesForStaticFinalFieldModification->size());
-    for (int i = 0; i < compClassesForStaticFinalFieldModification->size(); ++i)
-        classesForStaticFinalFieldModification[i] = (*compClassesForStaticFinalFieldModification)[i];
+    std::vector<TR_OpaqueClassBlock *> classesForStaticFinalFieldModification;
+    try {
+        auto *compClassesForStaticFinalFieldModification = comp->getClassesForStaticFinalFieldModification();
+        classesForStaticFinalFieldModification
+            = std::vector<TR_OpaqueClassBlock *>(compClassesForStaticFinalFieldModification->size());
+        for (int i = 0; i < compClassesForStaticFinalFieldModification->size(); ++i)
+            classesForStaticFinalFieldModification[i] = (*compClassesForStaticFinalFieldModification)[i];
+    } catch (...) {
+        TR_ASSERT_FATAL(false,
+            "Exception in computeDataForCHTableCommit: collecting classesForStaticFinalFieldModification");
+    }
 
     std::vector<J9::RepeatRetainedMethodsAnalysis::InlinedSiteInfo> inlinedSiteInfo;
     std::vector<TR_ResolvedMethod *> keepaliveMethods;
     std::vector<TR_ResolvedMethod *> bondMethods;
-    J9::RepeatRetainedMethodsAnalysis::getDataForClient(comp, inlinedSiteInfo, keepaliveMethods, bondMethods);
+    try {
+        J9::RepeatRetainedMethodsAnalysis::getDataForClient(comp, inlinedSiteInfo, keepaliveMethods, bondMethods);
+    } catch (...) {
+        TR_ASSERT_FATAL(false,
+            "Exception in computeDataForCHTableCommit: RepeatRetainedMethodsAnalysis::getDataForClient");
+    }
 
-    uint8_t *startPC = comp->cg()->getCodeStart();
+    uint8_t *startPC;
+    try {
+        startPC = comp->cg()->getCodeStart();
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in computeDataForCHTableCommit: getting startPC from code generator");
+    }
 
     return std::make_tuple(classes, classesThatShouldNotBeNewlyExtended, preXMethods, sideEffectPatchSitesVec,
         serialVGuards, compClassesThatShouldNotBeLoaded, compClassesThatShouldNotBeNewlyExtended,

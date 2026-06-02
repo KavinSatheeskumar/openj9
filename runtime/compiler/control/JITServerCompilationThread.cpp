@@ -112,63 +112,111 @@ JITServer::ServerActiveThreadsState computeServerActiveThreadsState(TR::Compilat
  */
 void outOfProcessCompilationEnd(TR_MethodToBeCompiled *entry, TR::Compilation *comp)
 {
-    entry->_tryCompilingAgain = false; // TODO: Need to handle recompilations gracefully when relocation fails
-    auto compInfoPT = (TR::CompilationInfoPerThreadRemote *)entry->_compInfoPT;
+    TR::CompilationInfoPerThreadRemote *compInfoPT = NULL;
+    try {
+        entry->_tryCompilingAgain = false; // TODO: Need to handle recompilations gracefully when relocation fails
+        compInfoPT = (TR::CompilationInfoPerThreadRemote *)entry->_compInfoPT;
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: initialization section");
+    }
 
-    TR::CodeCache *codeCache = comp->cg()->getCodeCache();
+    TR::CodeCache *codeCache = NULL;
+    OMR::CodeCacheMethodHeader *codeCacheHeader = NULL;
+    TR_DataCache *dataCache = NULL;
+    J9JITDataCacheHeader *dataCacheHeader = NULL;
+    size_t codeSize = 0;
+    size_t dataSize = 0;
 
-    TR_ASSERT(comp->getAotMethodDataStart(), "The header must have been set");
-    TR_AOTMethodHeader *aotMethodHeaderEntry = comp->getAotMethodHeaderEntry();
+    try {
+        codeCache = comp->cg()->getCodeCache();
 
-    uint8_t *codeStart = (uint8_t *)aotMethodHeaderEntry->compileMethodCodeStartPC;
-    OMR::CodeCacheMethodHeader *codeCacheHeader = (OMR::CodeCacheMethodHeader *)codeStart;
+        TR_ASSERT(comp->getAotMethodDataStart(), "The header must have been set");
+        TR_AOTMethodHeader *aotMethodHeaderEntry = comp->getAotMethodHeaderEntry();
 
-    TR_DataCache *dataCache = (TR_DataCache *)comp->getReservedDataCache();
-    TR_ASSERT(dataCache, "A dataCache must be reserved for JITServer compilations");
-    J9JITDataCacheHeader *dataCacheHeader = (J9JITDataCacheHeader *)comp->getAotMethodDataStart();
+        uint8_t *codeStart = (uint8_t *)aotMethodHeaderEntry->compileMethodCodeStartPC;
+        codeCacheHeader = (OMR::CodeCacheMethodHeader *)codeStart;
 
-    size_t codeSize = codeCache->getWarmCodeAlloc() - (uint8_t *)codeCacheHeader;
-    size_t dataSize = dataCache->getSegment()->heapAlloc - (uint8_t *)dataCacheHeader;
+        dataCache = (TR_DataCache *)comp->getReservedDataCache();
+        TR_ASSERT(dataCache, "A dataCache must be reserved for JITServer compilations");
+        dataCacheHeader = (J9JITDataCacheHeader *)comp->getAotMethodDataStart();
 
-    std::string codeCacheStr((const char *)codeCacheHeader, codeSize);
-    std::string dataCacheStr((const char *)dataCacheHeader, dataSize);
+        codeSize = codeCache->getWarmCodeAlloc() - (uint8_t *)codeCacheHeader;
+        dataSize = dataCache->getSegment()->heapAlloc - (uint8_t *)dataCacheHeader;
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: cache setup section");
+    }
 
-    // The CH table commit data may be needed even if TR_DisableCHOpts is set,
-    // because if there were bonds, it may be necessary for the client's CH
-    // table commit to create unload assumptions.
+    std::string codeCacheStr;
+    std::string dataCacheStr;
+
+    try {
+        codeCacheStr = std::string((const char *)codeCacheHeader, codeSize);
+        dataCacheStr = std::string((const char *)dataCacheHeader, dataSize);
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: creating cache strings");
+    }
+
     CHTableCommitData chTableData;
-    if (!entry->_useAotCompilation) {
-        TR_CHTable *chTable = comp->getCHTable();
-        chTableData = chTable->computeDataForCHTableCommit(comp);
+
+    try {
+        // The CH table commit data may be needed even if TR_DisableCHOpts is set,
+        // because if there were bonds, it may be necessary for the client's CH
+        // table commit to create unload assumptions.
+        if (!entry->_useAotCompilation) {
+            TR_CHTable *chTable = comp->getCHTable();
+            chTableData = chTable->computeDataForCHTableCommit(comp);
+        }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: CH table section");
     }
 
     auto classesThatShouldNotBeNewlyExtended = compInfoPT->getClassesThatShouldNotBeNewlyExtended();
+    std::string logFileStr;
 
-    // Pack log file to send to client
-    std::string logFileStr = TR::Options::packLogFile(comp->log());
+    try {
+        // Pack log file to send to client
+        logFileStr = TR::Options::packLogFile(comp->log());
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: packing log file");
+    }
 
-    // Send runtime assumptions created during compilation to the client
     std::vector<SerializedRuntimeAssumption> serializedRuntimeAssumptions;
-    if (comp->getSerializedRuntimeAssumptions().size() > 0) {
-        serializedRuntimeAssumptions.reserve(comp->getSerializedRuntimeAssumptions().size());
-        for (auto it : comp->getSerializedRuntimeAssumptions()) {
-            serializedRuntimeAssumptions.push_back(*it);
+
+    try {
+        // Send runtime assumptions created during compilation to the client
+        if (comp->getSerializedRuntimeAssumptions().size() > 0) {
+            serializedRuntimeAssumptions.reserve(comp->getSerializedRuntimeAssumptions().size());
+            for (auto it : comp->getSerializedRuntimeAssumptions()) {
+                serializedRuntimeAssumptions.push_back(*it);
+            }
         }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: serializing runtime assumptions");
     }
 
     auto resolvedMirrorMethodsPersistIPInfo = compInfoPT->getCachedResolvedMirrorMethodsPersistIPInfo();
+    JITServer::ServerMemoryState memoryState;
+    JITServer::ServerActiveThreadsState activeThreadState;
 
-    JITServer::ServerMemoryState memoryState = computeServerMemoryState(compInfoPT->getCompilationInfo());
-    JITServer::ServerActiveThreadsState activeThreadState
-        = computeServerActiveThreadsState(compInfoPT->getCompilationInfo());
+    try {
+        memoryState = computeServerMemoryState(compInfoPT->getCompilationInfo());
+        activeThreadState = computeServerActiveThreadsState(compInfoPT->getCompilationInfo());
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: computing server states");
+    }
 
-    // Send methods requring resolved trampolines in this compilation to the client
     std::vector<TR_OpaqueMethodBlock *> methodsRequiringTrampolines;
-    if (comp->getMethodsRequiringTrampolines().size() > 0) {
-        methodsRequiringTrampolines.reserve(comp->getMethodsRequiringTrampolines().size());
-        for (auto it : comp->getMethodsRequiringTrampolines()) {
-            methodsRequiringTrampolines.push_back(it);
+
+    try {
+        // Send methods requring resolved trampolines in this compilation to the client
+        if (comp->getMethodsRequiringTrampolines().size() > 0) {
+            methodsRequiringTrampolines.reserve(comp->getMethodsRequiringTrampolines().size());
+            for (auto it : comp->getMethodsRequiringTrampolines()) {
+                methodsRequiringTrampolines.push_back(it);
+            }
         }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: collecting methods requiring trampolines");
     }
 
     auto clientData = comp->getClientData();
@@ -176,101 +224,152 @@ void outOfProcessCompilationEnd(TR_MethodToBeCompiled *entry, TR::Compilation *c
     bool useServerOffsets = aotCacheStore && clientData->useServerOffsets(entry->_stream);
     const CachedAOTMethod *methodRecord = NULL;
 
-    if (compInfoPT->isAOTCacheStore()) {
-        if (comp->isAOTCacheStore()) {
-            auto clientData = comp->getClientData();
-            auto cache = clientData->getAOTCache();
-            cache->storeMethod(compInfoPT->getDefiningClassChainRecord(), compInfoPT->getMethodIndex(),
-                entry->_optimizationPlan->getOptLevel(), clientData->getAOTHeaderRecord(),
-                comp->getSerializationRecords(), comp->getAOTMethodDependencies(), codeCacheHeader, codeSize,
-                dataCacheHeader, dataSize, comp->signature(), clientData->getClientUID(), methodRecord);
-        } else if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
-            TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "Failed to serialize AOT method %s", comp->signature());
+    try {
+        if (compInfoPT->isAOTCacheStore()) {
+            if (comp->isAOTCacheStore()) {
+                auto cache = clientData->getAOTCache();
+                cache->storeMethod(compInfoPT->getDefiningClassChainRecord(), compInfoPT->getMethodIndex(),
+                    entry->_optimizationPlan->getOptLevel(), clientData->getAOTHeaderRecord(),
+                    comp->getSerializationRecords(), comp->getAOTMethodDependencies(), codeCacheHeader, codeSize,
+                    dataCacheHeader, dataSize, comp->signature(), clientData->getClientUID(), methodRecord);
+            } else if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
+                TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "Failed to serialize AOT method %s",
+                    comp->signature());
+            }
         }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: AOT cache store section");
     }
 
     if (useServerOffsets) {
         auto aotCache = clientData->getAOTCache();
 
         CachedAOTMethod *freshMethodRecord = NULL;
-        if (!methodRecord) {
-            freshMethodRecord = CachedAOTMethod::create(compInfoPT->getDefiningClassChainRecord(),
-                compInfoPT->getMethodIndex(), entry->_optimizationPlan->getOptLevel(), clientData->getAOTHeaderRecord(),
-                comp->getSerializationRecords(), comp->getAOTMethodDependencies(), codeCacheHeader, codeSize,
-                dataCacheHeader, dataSize, comp->signature());
-            methodRecord = freshMethodRecord;
+        try {
+            if (!methodRecord) {
+                freshMethodRecord = CachedAOTMethod::create(compInfoPT->getDefiningClassChainRecord(),
+                    compInfoPT->getMethodIndex(), entry->_optimizationPlan->getOptLevel(),
+                    clientData->getAOTHeaderRecord(), comp->getSerializationRecords(), comp->getAOTMethodDependencies(),
+                    codeCacheHeader, codeSize, dataCacheHeader, dataSize, comp->signature());
+                methodRecord = freshMethodRecord;
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: creating CachedAOTMethod");
         }
 
         VectorAllocator<const AOTSerializationRecord *> recordsAllocator(comp->trMemory()->heapMemoryRegion());
         Vector<const AOTSerializationRecord *> records(recordsAllocator);
-        {
+        try {
             OMR::CriticalSection cs(clientData->getAOTCacheKnownIdsMonitor());
             records
                 = aotCache->getSerializationRecords(methodRecord, clientData->getAOTCacheKnownIds(), *comp->trMemory());
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: getting serialization records");
         }
 
         std::vector<std::string> serializedRecords;
-        serializedRecords.reserve(records.size());
-        for (auto r : records)
-            serializedRecords.push_back(std::string((const char *)r, r->size()));
-
-        entry->_stream->finishAotStoreCompilation(
-            std::string((const char *)&methodRecord->data(), methodRecord->data().size()), serializedRecords,
-            chTableData,
-            std::vector<TR_OpaqueClassBlock *>(classesThatShouldNotBeNewlyExtended->begin(),
-                classesThatShouldNotBeNewlyExtended->end()),
-            logFileStr,
-            resolvedMirrorMethodsPersistIPInfo
-                ? std::vector<TR_ResolvedJ9Method *>(resolvedMirrorMethodsPersistIPInfo->begin(),
-                      resolvedMirrorMethodsPersistIPInfo->end())
-                : std::vector<TR_ResolvedJ9Method *>(),
-            *entry->_optimizationPlan, serializedRuntimeAssumptions, memoryState, activeThreadState,
-            methodsRequiringTrampolines);
-        if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
-            TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
-                "compThreadID=%d has successfully compiled AOT cache store %s memoryState=%d",
-                compInfoPT->getCompThreadId(), compInfoPT->getCompilation()->signature(), memoryState);
+        try {
+            serializedRecords.reserve(records.size());
+            for (auto r : records)
+                serializedRecords.push_back(std::string((const char *)r, r->size()));
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: serializing records to strings");
         }
-        if (freshMethodRecord) {
-            AOTCacheRecord::free(freshMethodRecord);
-            methodRecord = NULL;
+
+        try {
+            entry->_stream->finishAotStoreCompilation(
+                std::string((const char *)&methodRecord->data(), methodRecord->data().size()), serializedRecords,
+                chTableData,
+                std::vector<TR_OpaqueClassBlock *>(classesThatShouldNotBeNewlyExtended->begin(),
+                    classesThatShouldNotBeNewlyExtended->end()),
+                logFileStr,
+                resolvedMirrorMethodsPersistIPInfo
+                    ? std::vector<TR_ResolvedJ9Method *>(resolvedMirrorMethodsPersistIPInfo->begin(),
+                          resolvedMirrorMethodsPersistIPInfo->end())
+                    : std::vector<TR_ResolvedJ9Method *>(),
+                *entry->_optimizationPlan, serializedRuntimeAssumptions, memoryState, activeThreadState,
+                methodsRequiringTrampolines);
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: calling finishAotStoreCompilation");
+        }
+
+        try {
+            if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
+                TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
+                    "compThreadID=%d has successfully compiled AOT cache store %s memoryState=%d",
+                    compInfoPT->getCompThreadId(), compInfoPT->getCompilation()->signature(), memoryState);
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false,
+                "Exception in outOfProcessCompilationEnd: verbose logging after finishAotStoreCompilation");
+        }
+
+        try {
+            if (freshMethodRecord) {
+                AOTCacheRecord::free(freshMethodRecord);
+                methodRecord = NULL;
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: freeing freshMethodRecord");
         }
     } else {
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
         std::vector<TR::CodeGenerator::ConstRefInfo> constRefInfo;
-        comp->cg()->getConstRefInfoOnServer(constRefInfo);
+        try {
+            comp->cg()->getConstRefInfoOnServer(constRefInfo);
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: getting const ref info");
+        }
 #endif
 
-        entry->_stream->finishCompilation(codeCacheStr, dataCacheStr, chTableData,
-            std::vector<TR_OpaqueClassBlock *>(classesThatShouldNotBeNewlyExtended->begin(),
-                classesThatShouldNotBeNewlyExtended->end()),
-            logFileStr,
-            resolvedMirrorMethodsPersistIPInfo
-                ? std::vector<TR_ResolvedJ9Method *>(resolvedMirrorMethodsPersistIPInfo->begin(),
-                      resolvedMirrorMethodsPersistIPInfo->end())
-                : std::vector<TR_ResolvedJ9Method *>(),
-            *entry->_optimizationPlan, serializedRuntimeAssumptions, memoryState, activeThreadState,
-            methodsRequiringTrampolines
+        try {
+            entry->_stream->finishCompilation(codeCacheStr, dataCacheStr, chTableData,
+                std::vector<TR_OpaqueClassBlock *>(classesThatShouldNotBeNewlyExtended->begin(),
+                    classesThatShouldNotBeNewlyExtended->end()),
+                logFileStr,
+                resolvedMirrorMethodsPersistIPInfo
+                    ? std::vector<TR_ResolvedJ9Method *>(resolvedMirrorMethodsPersistIPInfo->begin(),
+                          resolvedMirrorMethodsPersistIPInfo->end())
+                    : std::vector<TR_ResolvedJ9Method *>(),
+                *entry->_optimizationPlan, serializedRuntimeAssumptions, memoryState, activeThreadState,
+                methodsRequiringTrampolines
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-            ,
-            constRefInfo
+                ,
+                constRefInfo
 #endif
-        );
-        if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
-            TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
-                "compThreadID=%d has successfully compiled %s memoryState=%d", compInfoPT->getCompThreadId(),
-                comp->signature(), memoryState);
+            );
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: calling finishCompilation");
+        }
+
+        try {
+            if (TR::Options::getVerboseOption(TR_VerboseJITServer)) {
+                TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
+                    "compThreadID=%d has successfully compiled %s memoryState=%d", compInfoPT->getCompThreadId(),
+                    comp->signature(), memoryState);
+            }
+        } catch (...) {
+            TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: verbose logging after finishCompilation");
         }
     }
-    compInfoPT->clearPerCompilationCaches();
 
-    Trc_JITServerCompileEnd(compInfoPT->getCompilationThread(), compInfoPT->getCompThreadId(), comp->signature(),
-        comp->getHotnessName());
+    try {
+        compInfoPT->clearPerCompilationCaches();
 
-    // Check whether we need to save a copy of the AOTcache in a file
-    if (compInfoPT->getCompilationInfo()->getPersistentInfo()->getJITServerUseAOTCachePersistence()) {
-        if (clientData->usesAOTCache())
-            clientData->getAOTCache()->triggerAOTCacheStoreToFileIfNeeded();
+        Trc_JITServerCompileEnd(compInfoPT->getCompilationThread(), compInfoPT->getCompThreadId(), comp->signature(),
+            comp->getHotnessName());
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: cleanup section");
+    }
+
+    try {
+        // Check whether we need to save a copy of the AOTcache in a file
+        if (compInfoPT->getCompilationInfo()->getPersistentInfo()->getJITServerUseAOTCachePersistence()) {
+            if (clientData->usesAOTCache())
+                clientData->getAOTCache()->triggerAOTCacheStoreToFileIfNeeded();
+        }
+    } catch (...) {
+        TR_ASSERT_FATAL(false, "Exception in outOfProcessCompilationEnd: AOT cache persistence section");
     }
 }
 
