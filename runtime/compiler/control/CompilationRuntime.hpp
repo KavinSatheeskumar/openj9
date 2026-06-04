@@ -917,6 +917,18 @@ public:
     TR::Monitor *getTransientClassLoaderMonitor() { return _transientClassLoaderMonitor; }
 
     void setTransientClassLoadersMonitor(TR::Monitor *monitor) { _transientClassLoaderMonitor = monitor; }
+
+    void setRedundantMethods(PersistentUnorderedSet<std::string> *redundantMethods)
+    {
+        _redundantMethods = redundantMethods;
+    }
+
+    PersistentUnorderedSet<std::string> *getRedundantMethods() { return _redundantMethods; }
+
+    TR::Monitor *getRedundantMethodsMonitor() { return _redundantCompsMonitor; }
+
+    void setRedundantMethodsMonitor(TR::Monitor *monitor) { _redundantCompsMonitor = monitor; }
+
 #endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
 
     int32_t getQueueWeight() const { return _queueWeight; }
@@ -1665,6 +1677,8 @@ private:
 #if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
     TR::Monitor *_transientClassLoaderMonitor;
     PersistentUnorderedSet<J9ClassLoader *> *_transientClassLoaders;
+    TR::Monitor *_redundantCompsMonitor;
+    PersistentUnorderedSet<std::string> *_redundantMethods;
 #endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
 
 #ifdef DEBUG

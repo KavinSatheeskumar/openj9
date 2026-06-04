@@ -1771,6 +1771,31 @@ extern "C" jint onLoadInternal(J9JavaVM *javaVM, J9JITConfig *jitConfig, char *x
             fprintf(stderr, "Cannot create transient class loaders monitor\n");
             return -1;
         }
+
+        compInfo->setRedundantMethods(new (PERSISTENT_NEW) PersistentUnorderedSet<std::string>(
+            PersistentUnorderedSet<std::string>::allocator_type(TR::Compiler->persistentAllocator())));
+        if (!compInfo->getRedundantMethods()) {
+            fprintf(stderr, "Cannot create redundant methods unordered set\n");
+            return -1;
+        }
+
+        compInfo->setRedundantMethodsMonitor(TR::Monitor::create("JIT-RedundantCompilationsMonitor"));
+        if (!compInfo->getRedundantMethodsMonitor()) {
+            fprintf(stderr, "Cannot create redundant comps monitor\n");
+            return -1;
+        }
+
+        ::FILE *fptr = fopen("/Users/kavinsatheeskumar/Desktop/dev-env/stuff/j9m2.csv", "r");
+        if (!fptr)
+            return 0;
+
+        char line[3073];
+        while (fgets(line, sizeof(line), fptr)) {
+            line[strcspn(line, "\n")] = '\0';
+            compInfo->getRedundantMethods()->emplace(line);
+            TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "file %s", line);
+            // fprintf(stderr, "st size: %zu\n", compInfo->getRedundantMethods()->size());
+        }
     }
 #endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
 

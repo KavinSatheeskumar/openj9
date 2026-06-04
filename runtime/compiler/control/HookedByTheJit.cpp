@@ -726,7 +726,6 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
             line[strcspn(line, "\n")] = '\0';
             if (!strcmp(buf, line)) {
                 scale = true;
-                TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "match found: %s", buf);
                 break;
             }
         }
