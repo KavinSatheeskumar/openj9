@@ -550,48 +550,74 @@ void J9::RepeatRetainedMethodsAnalysis::getDataForClient(TR::Compilation *comp,
     std::vector<InlinedSiteInfo> &inlinedSiteInfo, std::vector<TR_ResolvedMethod *> &keepaliveMethods,
     std::vector<TR_ResolvedMethod *> &bondMethods)
 {
-    TR_ASSERT_FATAL(comp->isOutOfProcessCompilation(), "server only");
+    try {
+        TR_ASSERT_FATAL(comp->isOutOfProcessCompilation(), "server only");
 
-    inlinedSiteInfo.clear();
-    keepaliveMethods.clear();
-    bondMethods.clear();
+        inlinedSiteInfo.clear();
+        keepaliveMethods.clear();
+        bondMethods.clear();
 
-    if (comp->clientAlreadyRepeatedRetainedMethodsAnalysis()) {
-        return; // no need to send this data; the client won't repeat analysis again
+        if (comp->clientAlreadyRepeatedRetainedMethodsAnalysis()) {
+            return; // no need to send this data; the client won't repeat analysis again
+        }
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(3-param) initialization Exception: %s", e.what());
     }
 
-    uint32_t numInlinedSites = comp->getNumInlinedCallSites();
+    uint32_t numInlinedSites = 0;
+    try {
+        numInlinedSites = comp->getNumInlinedCallSites();
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(3-param) getNumInlinedCallSites Exception: %s", e.what());
+    }
+
     for (uint32_t i = 0; i < numInlinedSites; i++) {
-        TR_ResolvedMethod *refinedMethod = comp->getInlinedCallSiteRefinedMethod(i);
-        bool generatedKeepalive = comp->didInlinedSiteGenerateKeepalive(i);
-        bool generatedBond = comp->didInlinedSiteGenerateBond(i);
-
+        TR_ResolvedMethod *refinedMethod = NULL;
+        bool generatedKeepalive = false;
+        bool generatedBond = false;
         TR_ResolvedMethod *refinedMethodMirror = NULL;
-        if (refinedMethod != NULL) {
-            auto serverMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(refinedMethod);
-            refinedMethodMirror = serverMethod->getRemoteMirror();
-        }
 
-        if (refinedMethodMirror != NULL || generatedKeepalive || generatedBond) {
-            InlinedSiteInfo info = {};
-            info._inlinedSiteIndex = i;
-            info._refinedMethod = refinedMethodMirror;
-            info._generatedKeepalive = generatedKeepalive;
-            info._generatedBond = generatedBond;
-            inlinedSiteInfo.push_back(info);
+        try {
+            refinedMethod = comp->getInlinedCallSiteRefinedMethod(i);
+            generatedKeepalive = comp->didInlinedSiteGenerateKeepalive(i);
+            generatedBond = comp->didInlinedSiteGenerateBond(i);
+
+            if (refinedMethod != NULL) {
+                auto serverMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(refinedMethod);
+                refinedMethodMirror = serverMethod->getRemoteMirror();
+            }
+
+            if (refinedMethodMirror != NULL || generatedKeepalive || generatedBond) {
+                InlinedSiteInfo info = {};
+                info._inlinedSiteIndex = i;
+                info._refinedMethod = refinedMethodMirror;
+                info._generatedKeepalive = generatedKeepalive;
+                info._generatedBond = generatedBond;
+                inlinedSiteInfo.push_back(info);
+            }
+        } catch (const std::exception &e) {
+            TR_ASSERT_FATAL(false, "getDataForClient(3-param) inlined site loop Exception: %s", e.what());
         }
     }
 
     TR_ResolvedMethod *keepaliveMethod = NULL;
-    auto keepaliveMethodsIter = comp->retainedMethods()->keepaliveMethods();
-    while (keepaliveMethodsIter.next(&keepaliveMethod)) {
-        keepaliveMethods.push_back(static_cast<TR_ResolvedJ9JITServerMethod *>(keepaliveMethod)->getRemoteMirror());
+    try {
+        auto keepaliveMethodsIter = comp->retainedMethods()->keepaliveMethods();
+        while (keepaliveMethodsIter.next(&keepaliveMethod)) {
+            keepaliveMethods.push_back(static_cast<TR_ResolvedJ9JITServerMethod *>(keepaliveMethod)->getRemoteMirror());
+        }
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(3-param) keepalive methods Exception: %s", e.what());
     }
 
     TR_ResolvedMethod *bondMethod = NULL;
-    auto bondMethodsIter = comp->retainedMethods()->bondMethods();
-    while (bondMethodsIter.next(&bondMethod)) {
-        bondMethods.push_back(static_cast<TR_ResolvedJ9JITServerMethod *>(bondMethod)->getRemoteMirror());
+    try {
+        auto bondMethodsIter = comp->retainedMethods()->bondMethods();
+        while (bondMethodsIter.next(&bondMethod)) {
+            bondMethods.push_back(static_cast<TR_ResolvedJ9JITServerMethod *>(bondMethod)->getRemoteMirror());
+        }
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(3-param) bond methods Exception: %s", e.what());
     }
 }
 
@@ -599,24 +625,44 @@ void J9::RepeatRetainedMethodsAnalysis::getDataForClient(TR::Compilation *comp,
     std::vector<J9::ResolvedInlinedCallSite> &inliningTable, std::vector<InlinedSiteInfo> &inlinedSiteInfo,
     std::vector<TR_ResolvedMethod *> &keepaliveMethods, std::vector<TR_ResolvedMethod *> &bondMethods)
 {
-    getDataForClient(comp, inlinedSiteInfo, keepaliveMethods, bondMethods);
-
-    inliningTable.clear(); // just in case
-
-    if (comp->clientAlreadyRepeatedRetainedMethodsAnalysis()) {
-        return; // no need to send this data; the client won't repeat analysis again
+    try {
+        getDataForClient(comp, inlinedSiteInfo, keepaliveMethods, bondMethods);
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(4-param) delegate call Exception: %s", e.what());
     }
 
-    uint32_t n = comp->getNumInlinedCallSites();
-    inliningTable.reserve(n);
-    for (uint32_t i = 0; i < n; i++) {
-        TR_ResolvedMethod *method = comp->getInlinedResolvedMethod(i);
-        auto serverMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(method);
+    try {
+        inliningTable.clear(); // just in case
 
-        J9::ResolvedInlinedCallSite site;
-        site._method = serverMethod->getRemoteMirror();
-        site._bci = comp->getInlinedCallSite(i)._byteCodeInfo;
-        inliningTable.push_back(site);
+        if (comp->clientAlreadyRepeatedRetainedMethodsAnalysis()) {
+            return; // no need to send this data; the client won't repeat analysis again
+        }
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(4-param) initialization Exception: %s", e.what());
+    }
+
+    uint32_t n = 0;
+    try {
+        n = comp->getNumInlinedCallSites();
+        inliningTable.reserve(n);
+    } catch (const std::exception &e) {
+        TR_ASSERT_FATAL(false, "getDataForClient(4-param) getNumInlinedCallSites Exception: %s", e.what());
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        TR_ResolvedMethod *method = NULL;
+
+        try {
+            method = comp->getInlinedResolvedMethod(i);
+            auto serverMethod = static_cast<TR_ResolvedJ9JITServerMethod *>(method);
+
+            J9::ResolvedInlinedCallSite site;
+            site._method = serverMethod->getRemoteMirror();
+            site._bci = comp->getInlinedCallSite(i)._byteCodeInfo;
+            inliningTable.push_back(site);
+        } catch (const std::exception &e) {
+            TR_ASSERT_FATAL(false, "getDataForClient(4-param) inlining table loop Exception: %s", e.what());
+        }
     }
 }
 

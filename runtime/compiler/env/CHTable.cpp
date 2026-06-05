@@ -906,9 +906,9 @@ CHTableCommitData TR_CHTable::computeDataForCHTableCommit(TR::Compilation *comp)
     std::vector<TR_ResolvedMethod *> bondMethods;
     try {
         J9::RepeatRetainedMethodsAnalysis::getDataForClient(comp, inlinedSiteInfo, keepaliveMethods, bondMethods);
-    } catch (...) {
+    } catch (std::exception &e) {
         TR_ASSERT_FATAL(false,
-            "Exception in computeDataForCHTableCommit: RepeatRetainedMethodsAnalysis::getDataForClient");
+            "Exception in computeDataForCHTableCommit: RepeatRetainedMethodsAnalysis::getDataForClient, %s", e.what());
     }
 
     uint8_t *startPC;
