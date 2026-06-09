@@ -713,24 +713,16 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
     J9UTF8 *signature = J9ROMMETHOD_SIGNATURE(J9_ROM_METHOD_FROM_RAM_METHOD(method));
     snprintf(buf, sizeof(buf), "%.*s.%.*s%.*s", J9UTF8_LENGTH(className), utf8Data(className), J9UTF8_LENGTH(name),
         utf8Data(name), J9UTF8_LENGTH(signature), utf8Data(signature));
-    buf[3072] = '\0';
+    buf[J9UTF8_LENGTH(className) + J9UTF8_LENGTH(name) + J9UTF8_LENGTH(signature) + 1] = '\0';
+    std::string tmp(buf);
 
-    do {
-        ::FILE *fptr = fopen("/Users/kavinsatheeskumar/Desktop/dev-env/stuff/j9m2.csv", "r");
-        if (!fptr)
-            break;
-
-        // TR::FILE f(fptr);
-        char line[3073];
-        while (fgets(line, sizeof(line), fptr)) {
-            line[strcspn(line, "\n")] = '\0';
-            if (!strcmp(buf, line)) {
-                scale = true;
-                break;
-            }
+    {
+        OMR::CriticalSection(compInfo->getRedundantMethodsMonitor());
+        if (compInfo->getRedundantMethods()->find(tmp) != compInfo->getRedundantMethods()->end()) {
+            scale = true;
+            TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Method scaled");
         }
-        fclose(fptr);
-    } while (false);
+    }
 
     if (scale) { // method in cache;
         count *= 200;
