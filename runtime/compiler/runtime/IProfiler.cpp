@@ -3181,14 +3181,6 @@ void TR_IProfiler::checkMethodHashTable()
                         }
                     }
 
-                    //{
-                    //    OMR::CriticalSection cs(getCompInfo()->getJ9mStartPCMonitor());
-                    //    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void*> *mp = getCompInfo()->getJ9mStartPC();
-                    //    if (mp->find((TR_OpaqueMethodBlock*)caller) != mp->end()) {
-                    //        startPC = (*mp)[(TR_OpaqueMethodBlock*)method];
-                    //    }
-                    //}
-
                     // jitcfg->getPersistentInfo();
 
                     // Find the oldest compilation by following the chain of previous compilations

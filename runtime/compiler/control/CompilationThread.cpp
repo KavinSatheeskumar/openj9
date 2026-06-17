@@ -10280,14 +10280,6 @@ void TR::CompilationInfoPerThreadBase::logCompilationSuccess(J9VMThread *vmThrea
                 }
             }
 
-            //{
-            //    OMR::CriticalSection cs(getCompilationInfo()->getJ9mStartPCMonitor());
-            //    PersistentUnorderedMap<TR_OpaqueMethodBlock *, void*> *mp = getCompilationInfo()->getJ9mStartPC();
-            //    if (mp->find((TR_OpaqueMethodBlock*)method) == mp->end()) {
-            //        (*mp)[(TR_OpaqueMethodBlock*)method] = (void*)startPC;
-            //    }
-            //}
-
             if (TR_PersistentMethodInfo *info = TR_PersistentMethodInfo::get(compilee)) {
                 info->setStartPC((void *)startPC);
             }

@@ -706,7 +706,6 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
         }
     }
 
-    bool scale = false;
     char buf[3073];
     J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
     J9UTF8 *name = J9ROMMETHOD_NAME(J9_ROM_METHOD_FROM_RAM_METHOD(method));
@@ -717,15 +716,10 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
     std::string tmp(buf);
 
     {
-        OMR::CriticalSection(compInfo->getRedundantMethodsMonitor());
+        OMR::CriticalSection cs(compInfo->getRedundantMethodsMonitor());
         if (compInfo->getRedundantMethods()->find(tmp) != compInfo->getRedundantMethods()->end()) {
-            scale = true;
-            TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Method scaled");
+            count *= 2;
         }
-    }
-
-    if (scale) { // method in cache;
-        count *= 200;
     }
 
     // Option to display chosen counts to track possible bugs
