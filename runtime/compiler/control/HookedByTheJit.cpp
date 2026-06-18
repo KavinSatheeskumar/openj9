@@ -715,11 +715,10 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
     buf[J9UTF8_LENGTH(className) + J9UTF8_LENGTH(name) + J9UTF8_LENGTH(signature) + 1] = '\0';
     std::string tmp(buf);
 
-    {
-        OMR::CriticalSection cs(compInfo->getRedundantMethodsMonitor());
-        if (compInfo->getRedundantMethods()->find(tmp) != compInfo->getRedundantMethods()->end()) {
-            count *= 2;
-        }
+    auto redunmthd = compInfo->getRedundantMethods();
+
+    if (redunmthd && redunmthd->find(tmp) != redunmthd->end()) {
+        count *= 200;
     }
 
     // Option to display chosen counts to track possible bugs
