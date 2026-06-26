@@ -497,6 +497,8 @@ void TR_JITClientPersistentClassInfo::setFieldInfo(TR_PersistentClassInfoForFiel
 
 TR_SubClass *TR_JITClientPersistentClassInfo::addSubClass(TR_PersistentClassInfo *subClass)
 {
+    TR_ASSERT_FATAL(TR_JITClientPersistentClassInfo::_chTable, "chTable null...: %p",
+        TR_JITClientPersistentClassInfo::_chTable);
     TR_JITClientPersistentClassInfo::_chTable->markDirty(getClassId());
     return TR_PersistentClassInfo::addSubClass(subClass);
 }
