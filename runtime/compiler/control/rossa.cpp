@@ -1768,10 +1768,14 @@ extern "C" jint onLoadInternal(J9JavaVM *javaVM, J9JITConfig *jitConfig, char *x
         }
     }
 
-    ::FILE *fptr = fopen("/Users/kavinsatheeskumar/Desktop/dev-env/stuff/j9m2.csv", "r");
-    if (!fptr)
+    ::FILE *fptr = NULL;
+    char *redundantMethodsFileName = ((TR_JitPrivateConfig *)jitConfig->privateConfig)->redundantMethodsFileName;
+    if (!redundantMethodsFileName)
         return 0;
 
+    fptr = fopen(redundantMethodsFileName, "r");
+    if (!fptr)
+        return 0;
     compInfo->setRedundantMethods(new (PERSISTENT_NEW) PersistentUnorderedSet<std::string>(
         PersistentUnorderedSet<std::string>::allocator_type(TR::Compiler->persistentAllocator())));
     if (!compInfo->getRedundantMethods()) {

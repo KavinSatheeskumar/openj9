@@ -718,7 +718,7 @@ static void jitHookInitializeSendTarget(J9HookInterface **hook, UDATA eventNum, 
     auto redunmthd = compInfo->getRedundantMethods();
 
     if (redunmthd && redunmthd->find(tmp) != redunmthd->end()) {
-        count *= 200;
+        count *= TR::Options::getRedundantMethodInvocationMultiplier();
     }
 
     // Option to display chosen counts to track possible bugs

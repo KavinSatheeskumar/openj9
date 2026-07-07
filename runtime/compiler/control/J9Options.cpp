@@ -121,6 +121,7 @@ int32_t J9::Options::_countForMethodsCompiledDuringStartup = 10;
 
 int32_t J9::Options::_countForLoopyBootstrapMethods = -1; // -1 means feature disabled
 int32_t J9::Options::_countForLooplessBootstrapMethods = -1; // -1 means feature disabled
+int32_t J9::Options::_redundantMethodInvocationMultiplier = 200;
 
 TR::SimpleRegex *J9::Options::_jniAccelerator = NULL;
 
@@ -1245,6 +1246,11 @@ TR::OptionTable OMR::Options::_feOptions[] = {
     { "reconnectWaitTimeMs=", " \tInitial wait time in milliseconds until attempting to reconnect to JITServer",
      TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_reconnectWaitTimeMs, 0, "F%d", NOT_IN_SUBSET },
 #endif  /* defined(J9VM_OPT_JITSERVER) */
+    { "redundantMethodsFile=", "L<filename>\tspecify file containing redundant methods to skip compilation",
+     TR::Options::setStringForPrivateBase, offsetof(TR_JitPrivateConfig, redundantMethodsFileName), 0, "P%s" },
+    { "redundantMethodsInvocationMultiplier=", "M<nnn>\tmultiplier for invocation count of redundant methods",
+     TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_redundantMethodInvocationMultiplier, 200, "F%d",
+     NOT_IN_SUBSET },
     { "regmap", 0, SET_JITCONFIG_RUNTIME_FLAG(J9JIT_CG_REGISTER_MAPS) },
     { "relaxedCompilationLimitsSampleThreshold=",
      "R<nnn>\tGlobal samples below this threshold means we can use higher compilation limits", TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_relaxedCompilationLimitsSampleThreshold, 0, "F%d",

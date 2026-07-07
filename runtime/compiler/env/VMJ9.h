@@ -131,6 +131,7 @@ typedef struct TR_JitPrivateConfig {
     uint64_t verboseFlags;
     TR::FILE *rtLogFile;
     char *rtLogFileName;
+    char *redundantMethodsFileName;
     char *itraceFileNamePrefix;
     TR_IProfiler *iProfiler;
     TR_HWProfiler *hwProfiler;

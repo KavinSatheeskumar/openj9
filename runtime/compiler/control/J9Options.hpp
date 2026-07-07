@@ -308,6 +308,10 @@ public:
 
     static int32_t getCountForLooplessBootstrapMethods() { return _countForLooplessBootstrapMethods; }
 
+    static int32_t _redundantMethodInvocationMultiplier;
+
+    static int32_t getRedundantMethodInvocationMultiplier() { return _redundantMethodInvocationMultiplier; }
+
     // fast JNI option
     static TR::SimpleRegex *_jniAccelerator;
 
