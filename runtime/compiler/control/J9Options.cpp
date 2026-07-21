@@ -121,7 +121,7 @@ int32_t J9::Options::_countForMethodsCompiledDuringStartup = 10;
 
 int32_t J9::Options::_countForLoopyBootstrapMethods = -1; // -1 means feature disabled
 int32_t J9::Options::_countForLooplessBootstrapMethods = -1; // -1 means feature disabled
-int32_t J9::Options::_redundantMethodInvocationMultiplier = 200;
+int32_t J9::Options::_redundantMethodInvocationIncrease = TR_DEFAULT_INITIAL_COUNT;
 
 TR::SimpleRegex *J9::Options::_jniAccelerator = NULL;
 
@@ -1248,8 +1248,8 @@ TR::OptionTable OMR::Options::_feOptions[] = {
 #endif  /* defined(J9VM_OPT_JITSERVER) */
     { "redundantMethodsFile=", "L<filename>\tspecify file containing redundant methods to skip compilation",
      TR::Options::setStringForPrivateBase, offsetof(TR_JitPrivateConfig, redundantMethodsFileName), 0, "P%s" },
-    { "redundantMethodsInvocationMultiplier=", "M<nnn>\tmultiplier for invocation count of redundant methods",
-     TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_redundantMethodInvocationMultiplier, 200, "F%d",
+    { "redundantMethodsInvocationIncrease=", "M<nnn>\tincrease for invocation count of redundant methods",
+     TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_redundantMethodInvocationIncrease, 0, "F%d",
      NOT_IN_SUBSET },
     { "regmap", 0, SET_JITCONFIG_RUNTIME_FLAG(J9JIT_CG_REGISTER_MAPS) },
     { "relaxedCompilationLimitsSampleThreshold=",

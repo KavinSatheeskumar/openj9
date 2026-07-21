@@ -1141,6 +1141,7 @@ TR::CompilationInfo::CompilationInfo(J9JITConfig *jitConfig)
 #if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
     _transientClassLoaderMonitor(NULL)
     , _transientClassLoaders(NULL)
+    , _redundantMethodsMonitor(NULL)
     , _redundantMethods(NULL)
     ,
 #endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
