@@ -323,29 +323,11 @@ extern "C" IDATA j9jit_testarossa_err(struct J9JITConfig *jitConfig, J9VMThread 
         // of methods to gather more IProfiler info
         TR::CompilationInfo *compInfo = getCompilationInfo(jitConfig);
 
-        char buf[3073];
-        J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
-        J9UTF8 *name = J9ROMMETHOD_NAME(J9_ROM_METHOD_FROM_RAM_METHOD(method));
-        J9UTF8 *signature = J9ROMMETHOD_SIGNATURE(J9_ROM_METHOD_FROM_RAM_METHOD(method));
-        snprintf(buf, sizeof(buf), "%.*s.%.*s%.*s", J9UTF8_LENGTH(className), utf8Data(className), J9UTF8_LENGTH(name),
-            utf8Data(name), J9UTF8_LENGTH(signature), utf8Data(signature));
-        buf[J9UTF8_LENGTH(className) + J9UTF8_LENGTH(name) + J9UTF8_LENGTH(signature) + 1] = '\0';
-        std::string tmp(buf);
+        TR_IProfiler *ipf = (((TR_JitPrivateConfig *)(jitConfig->privateConfig))->iProfiler);
 
-        auto redunmthd = compInfo->getRedundantMethods();
-
-        if (redunmthd && redunmthd->find(tmp) != redunmthd->end()) {
-            OMR::CriticalSection cs(compInfo->getRedundantMethodsMonitor());
-
-            if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance)) {
-                TR_VerboseLog::writeLineLocked(TR_Vlog_PERF, "Compilation Deferred: %s", tmp.c_str());
-            }
-
-            redunmthd->erase(tmp);
-
-            TR::CompilationInfo::setInvocationCount(method, TR::Options::getRedundantMethodInvocationIncrease());
-
-            return false;
+        if (ipf && ipf->isCompilationRedundant((TR_OpaqueMethodBlock *)method)) {
+            TR::CompilationInfo::replenishInvocationCountIfExpired(method,
+                TR::Options::getRedundantMethodInvocationIncrease());
         }
 
         if (TR::Options::_compilationDelayTime > 0) {

@@ -940,6 +940,7 @@ public:
         uint32_t *otherBucketWeight = NULL);
     bool getCallerWeight(TR_OpaqueMethodBlock *calleeMethod, TR_OpaqueMethodBlock *callerMethod, uint32_t *weight,
         uint32_t pcIndex = ~0, TR::Compilation *comp = 0);
+    bool isCompilationRedundant(TR_OpaqueMethodBlock *method);
 
     bool isCallGraphProfilingEnabled();
 

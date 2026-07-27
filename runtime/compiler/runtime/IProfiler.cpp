@@ -3346,6 +3346,59 @@ bool TR_IProfiler::getCallerWeight(TR_OpaqueMethodBlock *calleeMethod, TR_Opaque
     return false;
 }
 
+bool TR_IProfiler::isCompilationRedundant(TR_OpaqueMethodBlock *method)
+{
+    int32_t bucket = methodHash((uintptr_t)method);
+    TR_IPMethodHashTableEntry *entry = searchForMethodSample((TR_OpaqueMethodBlock *)method, bucket);
+    if (!entry) {
+        return false;
+    }
+
+    TR_OpaqueMethodBlock *individualNonCompiledCaller = NULL;
+    int num_callers = 0;
+
+    // Iterate through all the callers and add their weight
+    for (TR_IPMethodData *it = &entry->_caller; it; it = it->next) {
+        ++num_callers;
+
+        TR_OpaqueMethodBlock *caller = it->getMethod();
+        void *startPC = TR::CompilationInfo::getPCIfCompiled((J9Method *)caller);
+        if (!startPC) {
+            if (!individualNonCompiledCaller) {
+                individualNonCompiledCaller = caller;
+                continue;
+            } else {
+                return false;
+            }
+        }
+
+        uint32_t callsitePCIndex = it->getPCIndex();
+
+        J9VMThread *vmContext = jitConfig->javaVM->internalVMFunctions->currentVMThread(jitConfig->javaVM);
+        J9JITExceptionTable *metaData = jitConfig->jitGetExceptionTableFromPC(vmContext, (UDATA)startPC);
+
+        for (U_32 i = 0; i < getNumInlinedCallSites(metaData); i++) {
+            TR_InlinedCallSite *inlinedCallSite = (TR_InlinedCallSite *)getInlinedCallSiteArrayElement(metaData, i);
+
+            // Check if the inlined method matches the callee and the bytecode index matches
+            if (inlinedCallSite->_methodInfo == (TR_OpaqueMethodBlock *)method
+                && inlinedCallSite->_byteCodeInfo.getByteCodeIndex() == callsitePCIndex) {
+                return false;
+            }
+        }
+    }
+
+    if (individualNonCompiledCaller) {
+        int count = TR::CompilationInfo::getInvocationCount((J9Method *)individualNonCompiledCaller);
+        TR::CompilationInfo::setInvocationCount((J9Method *)individualNonCompiledCaller, count / 2);
+    }
+
+    if (!num_callers)
+        return false;
+
+    return true;
+}
+
 static int32_t J9THREAD_PROC iprofilerThreadProc(void *entryarg)
 {
     J9JITConfig *jitConfig = (J9JITConfig *)entryarg;
