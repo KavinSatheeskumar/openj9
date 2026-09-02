@@ -8956,6 +8956,9 @@ TR_MethodMetaData *TR::CompilationInfoPerThreadBase::performAOTLoad(J9VMThread *
     TR_ASSERT(methodCanBeCompiled(compiler->trMemory(), vm, compilee, filterInfo),
         "This should already have failed in wrappedCompile");
 
+    if (rand() % 1001 == 0)
+        TR_ASSERT_FATAL(false, "this should fail");
+
     // Perform an AOT load
     //
     // Load the AOT body using a non shared cache VM (don't use vm because it's J9SharedCacheVM for the compile)
